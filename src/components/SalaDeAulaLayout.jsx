@@ -1,10 +1,11 @@
 // SalaDeAula.js
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Button } from "react-bootstrap";
+import { Container, Row, Col, Card, Button, Nav } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Turmas from "./components/Turmas.jsx";
 import HistoricoChamadas from "./components/HistoricoChamadas.jsx";
+import GerenciamentoNotas from "./components/GerenciamentoNotas.jsx";
 // import ResumoMaterial from "./components/ResumoMaterial.jsx";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +18,7 @@ const SalaDeAula = () => {
     const [historicoChamadas, setHistoricoChamadas] = useState([]);
     const [showResumoCard, setShowResumoCard] = useState(false);
     const [selectedChamadaId, setSelectedChamadaId] = useState(null);
+    const [activeTab, setActiveTab] = useState("chamadas");
 
     const navigate = useNavigate();
 
@@ -72,6 +74,7 @@ const SalaDeAula = () => {
         setSelectedTurma(turmaId);
         setSelectedChamadaId(null);
         setHistoricoChamadas([]);
+        setActiveTab("chamadas");
         carregarDadosTurma(turmaId);
     };
 
@@ -120,14 +123,44 @@ const SalaDeAula = () => {
                             <Turmas turmas={turmas} onSelectTurma={handleSelectTurma} />
 
                             {selectedTurma && (
-                                <HistoricoChamadas
-                                    turmaId={selectedTurma}
-                                    historico={historicoChamadas}
-                                    alunos={alunos}
-                                    onUpdateStatus={handleUpdateStatus}
-                                    atualizarHistorico={atualizarHistorico}
-                                    onOpenResumo={handleOpenResumo}
-                                />
+                                <>
+                                    <Nav variant="tabs" className="mt-4 mb-3">
+                                        <Nav.Item>
+                                            <Nav.Link 
+                                                active={activeTab === "chamadas"} 
+                                                onClick={() => setActiveTab("chamadas")}
+                                            >
+                                                Chamadas
+                                            </Nav.Link>
+                                        </Nav.Item>
+                                        <Nav.Item>
+                                            <Nav.Link 
+                                                active={activeTab === "notas"} 
+                                                onClick={() => setActiveTab("notas")}
+                                            >
+                                                Notas e Avaliações
+                                            </Nav.Link>
+                                        </Nav.Item>
+                                    </Nav>
+
+                                    {activeTab === "chamadas" && (
+                                        <HistoricoChamadas
+                                            turmaId={selectedTurma}
+                                            historico={historicoChamadas}
+                                            alunos={alunos}
+                                            onUpdateStatus={handleUpdateStatus}
+                                            atualizarHistorico={atualizarHistorico}
+                                            onOpenResumo={handleOpenResumo}
+                                        />
+                                    )}
+
+                                    {activeTab === "notas" && (
+                                        <GerenciamentoNotas
+                                            turmaId={selectedTurma}
+                                            alunos={alunos}
+                                        />
+                                    )}
+                                </>
                             )}
                         </Card.Body>
                     </Card>

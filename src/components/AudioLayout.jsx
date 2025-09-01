@@ -170,6 +170,46 @@ const Audios = () => {
 
 
     return (
+        <>
+            <style jsx>{`
+                .audio-cards-container {
+                    padding: 0;
+                }
+
+                .audio-card {
+                    transition: all 0.3s ease;
+                    border-radius: 12px !important;
+                }
+
+                .audio-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+                }
+
+                .audio-title {
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    line-height: 1.3;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    hyphens: auto;
+                    // color: #2c3e50;
+                }
+
+                .audio-player-wrapper {
+                    width: 100%;
+                }
+
+                .audio-player {
+                    height: 40px;
+                    border-radius: 8px;
+                }
+
+                .audio-player::-webkit-media-controls-panel {
+                    background-color: #f8f9fa;
+                    border-radius: 8px;
+                }
+            `}</style>
         <div className="card h-100 p-0 radius-12">
             <div className="card-header border-bottom bg-base py-16 px-24 d-flex align-items-center flex-wrap gap-3 justify-content-between">
                 <div className="d-flex align-items-center flex-wrap gap-3">
@@ -347,47 +387,45 @@ const Audios = () => {
                         {(!selectedCursoId || audios.length === 0) && !loading ? (
                             <div className="fw-bold text-primary">Clique em "Ver Áudios"</div>
                         ) : (
-                            <div className="table-responsive scroll-sm">
-
-                                <table className="table bordered-table sm-table mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Nome do Áudio</th>
-                                            <th className="text-center">Ação</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {loading ? (
-                                            <tr>
-                                                <td colSpan="2" className="text-center">
-                                                    Carregando...
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            filteredAudios.map((audio) => (
-                                                <tr key={audio.cp_audio_id}>
-                                                    <td style={{ maxWidth: '260px', wordWrap: 'break-word' }}>
-                                                        {audio.cp_nome_audio}
-                                                    </td>
-                                                    <td className="text-center">
-                                                        {/* <audio controls controlsList="nodownload">
-                                                            <source
-                                                                src={`${API_BASE_URL}/audios/${audio.cp_nome_audio}`}
-                                                                type="audio/mpeg"
-                                                            />
-                                                            Seu navegador não suporta o elemento <code>audio</code>.
-                                                        </audio> */}
-                                                        <audio controls preload="none" controlsList="nodownload">
-                                                            <source src={`${API_BASE_URL}/audio/${audio.cp_nome_audio}`} type="audio/mpeg" />
-                                                            Seu navegador não suporta o elemento <code>audio</code>.
-                                                        </audio>
-
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                            <div className="audio-cards-container">
+                                {loading ? (
+                                    <div className="text-center p-4">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p className="mt-2">Carregando áudios...</p>
+                                    </div>
+                                ) : (
+                                    <div className="d-flex flex-column gap-3">
+                                        {filteredAudios.map((audio) => (
+                                            <div key={audio.cp_audio_id} className="w-100">
+                                                <div className="audio-card card border-0 shadow-sm">
+                                                    <div className="card-body p-3">
+                                                        <div className="d-flex align-items-center justify-content-between mb-3">
+                                                            <h6 className="audio-title mb-0 flex-grow-1 pe-2" title={audio.cp_nome_audio}>
+                                                                {audio.cp_nome_audio}
+                                                            </h6>
+                                                        </div>
+                                                        <div className="audio-player-wrapper">
+                                                            <audio
+                                                                controls
+                                                                preload="none"
+                                                                controlsList="nodownload"
+                                                                className="w-100 audio-player"
+                                                            >
+                                                                <source
+                                                                    src={`${API_BASE_URL}/audio/${audio.cp_nome_audio}`}
+                                                                    type="audio/mpeg"
+                                                                />
+                                                                Seu navegador não suporta o elemento <code>audio</code>.
+                                                            </audio>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                         <div className="d-flex flex-column flex-md-row align-items-center justify-content-between mt-24">
@@ -505,6 +543,7 @@ const Audios = () => {
 
             <ToastContainer />
         </div>
+        </>
     );
 };
 

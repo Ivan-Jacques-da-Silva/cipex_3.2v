@@ -23,6 +23,7 @@
     "apexcharts": "3.44.0",
     "axios": "^1.7.9",
     "bootstrap": "^5.3.3",
+    "canvas-confetti": "^1.9.3",
     "datatables.net": "^2.1.8",
     "datatables.net-dt": "^2.1.8",
     "dayjs": "^1.11.13",

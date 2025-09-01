@@ -560,7 +560,7 @@ app.put('/update-turma/:turmaId', async (req, res) => {
           const updatePromises = cp_tr_alunos.map(async (alunoId) => {
             await db.query('UPDATE cp_usuarios SET cp_turma_id = ? WHERE cp_id = ?', [turmaId, alunoId]);
           });
-        
+
           await Promise.all(updatePromises);
         }
 
@@ -683,10 +683,10 @@ app.get('/escola/alunos/:id', (req, res) => {
 
 // const storage = multer.diskStorage({
 //   destination: (req, file, cb) => {
-//     cb(null, path.join(__dirname, 'AudiosCurso')); // Define a pasta onde os áudios serão salvos
+//     cb(null, 'AudiosCurso'); // Define a pasta onde os áudios serão salvos
 //   },
 //   filename: (req, file, cb) => {
-      
+
 //     cb(null, file.originalname);
 
 //   }
@@ -1723,7 +1723,7 @@ app.put(
     cp_mat_permitirDownload = ?,
     cp_mat_extra_codigos = ?
   WHERE cp_mat_id = ?`;
-  
+
 await db.query(query, [
   titulo,
   descricao,
@@ -2000,7 +2000,7 @@ app.get('/buscarusermatricula', (req, res) => {
     WHERE cp_tipo_user = 5 AND cp_excluido = 0
     ORDER BY cp_nome ASC
   `;
-  
+
   db.query(buscarUsuariosQuery, (err, result) => {
     if (err) {
       console.error('Erro ao buscar usuários:', err);
@@ -2030,7 +2030,7 @@ app.get('/buscarusermatricula/:id', (req, res) => {
   });
 });
 
-// Buscar todos os usuários do tipo cp_tipo_user = 5 para a matrícula
+// Buscar todas as matrículas
 // Rota para buscar as matrículas
 app.get('/relatoriomatricula', (req, res) => {
   const query = 'SELECT * FROM cp_matriculas'; // Consulta SQL para selecionar todas as matrículas
@@ -2091,15 +2091,15 @@ app.post('/cadastrar-matricula', async (req, res) => {
         const valorParcela = parseFloat((cp_mt_valor_curso / cp_mt_quantas_parcelas).toFixed(2));
         let data = new Date(cp_mt_primeira_parcela);
         const parcelas = [];
-    
+
         for (let i = 1; i <= cp_mt_quantas_parcelas; i++) {
             parcelas.push([matriculaId, new Date(data), 'à vencer', valorParcela]);
             data.setMonth(data.getMonth() + 1);
         }
-        
+
         db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
         if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
-        
+
             db.commit(err => {
               if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
               res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
@@ -2108,15 +2108,15 @@ app.post('/cadastrar-matricula', async (req, res) => {
         } else if (cp_mt_tipo_pagamento === "mensalidade" && cp_mt_valor_mensalidade > 0) {
           let data = new Date(cp_mt_primeira_parcela);
           const mensalidades = [];
-          
+
           for (let i = 1; i <= 12; i++) {
             mensalidades.push([matriculaId, new Date(data), 'à vencer', cp_mt_valor_mensalidade]);
             data.setMonth(data.getMonth() + 1);
           }
-          
+
           db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [mensalidades], err => {
             if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar mensalidades' }));
-            
+
             db.commit(err => {
               if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
               res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
@@ -2869,6 +2869,95 @@ app.get('/cursos-migracao', (req, res) => {
 });
 
 
+
+// ===== ROTAS PARA NOTAS =====
+
+// Criar nova nota
+app.post('/notas', (req, res) => {
+  const { turmaId, alunoId, data, notaWorkbook, notaProva } = req.body;
+  
+  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
+  
+  const query = `
+    INSERT INTO cp_notas (cp_nota_turma_id, cp_nota_aluno_id, cp_nota_data, cp_nota_workbook, cp_nota_prova, cp_nota_media)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.query(query, [turmaId, alunoId, data, notaWorkbook, notaProva, media], (err, result) => {
+    if (err) {
+      console.error('Erro ao salvar nota:', err);
+      res.status(500).json({ error: 'Erro ao salvar nota' });
+    } else {
+      res.status(201).json({ 
+        message: 'Nota salva com sucesso',
+        notaId: result.insertId 
+      });
+    }
+  });
+});
+
+// Buscar notas de uma turma
+app.get('/notas/turma/:turmaId', (req, res) => {
+  const turmaId = req.params.turmaId;
+  
+  const query = `
+    SELECT n.*, u.cp_nome AS cp_nome_aluno
+    FROM cp_notas n
+    JOIN cp_usuarios u ON n.cp_nota_aluno_id = u.cp_id
+    WHERE n.cp_nota_turma_id = ?
+    ORDER BY n.cp_nota_data DESC
+  `;
+  
+  db.query(query, [turmaId], (err, result) => {
+    if (err) {
+      console.error('Erro ao buscar notas:', err);
+      res.status(500).json({ error: 'Erro ao buscar notas' });
+    } else {
+      res.json(result);
+    }
+  });
+});
+
+// Atualizar nota
+app.put('/notas/:notaId', (req, res) => {
+  const notaId = req.params.notaId;
+  const { notaWorkbook, notaProva } = req.body;
+  
+  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
+  
+  const query = `
+    UPDATE cp_notas 
+    SET cp_nota_workbook = ?, cp_nota_prova = ?, cp_nota_media = ?
+    WHERE cp_nota_id = ?
+  `;
+  
+  db.query(query, [notaWorkbook, notaProva, media, notaId], (err, result) => {
+    if (err) {
+      console.error('Erro ao atualizar nota:', err);
+      res.status(500).json({ error: 'Erro ao atualizar nota' });
+    } else {
+      res.json({ message: 'Nota atualizada com sucesso' });
+    }
+  });
+});
+
+// Deletar nota
+app.delete('/notas/:notaId', (req, res) => {
+  const notaId = req.params.notaId;
+  
+  const query = 'DELETE FROM cp_notas WHERE cp_nota_id = ?';
+  
+  db.query(query, [notaId], (err, result) => {
+    if (err) {
+      console.error('Erro ao deletar nota:', err);
+      res.status(500).json({ error: 'Erro ao deletar nota' });
+    } else {
+      res.json({ message: 'Nota deletada com sucesso' });
+    }
+  });
+});
+
+// ===== FIM ROTAS PARA NOTAS =====
 
 const PORT = 3001;
 app.listen(PORT, () => {
