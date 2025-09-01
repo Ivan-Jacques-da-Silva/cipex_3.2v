@@ -20,6 +20,8 @@ const CadastroMatricula = ({
     const inputSearchRef = useRef(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [acaoConfirmada, setAcaoConfirmada] = useState(null);
+    const [showPaymentChangeModal, setShowPaymentChangeModal] = useState(false);
+    const [pendingPaymentType, setPendingPaymentType] = useState("");
     const abrirModalConfirmacao = () => setShowConfirmModal(true);
     const fecharModalConfirmacao = () => setShowConfirmModal(false);
 
@@ -55,6 +57,8 @@ const CadastroMatricula = ({
         horarioFim: "",
         nivelIdioma: "",
         primeiraDataPagamento: "",
+        tipoPagamento: "parcelado",
+        valorMensalidade: "",
     });
 
     const limparCampos = () => {
@@ -88,6 +92,8 @@ const CadastroMatricula = ({
             horarioFim: "",
             nivelIdioma: "",
             primeiraDataPagamento: "",
+            tipoPagamento: "parcelado",
+            valorMensalidade: "",
         });
     };
 
@@ -236,6 +242,8 @@ const CadastroMatricula = ({
                             contatoPai: dadosMatricula.cp_mt_contato_pai,
                             nomeMae: dadosMatricula.cp_mt_nome_mae,
                             contatoMae: dadosMatricula.cp_mt_contato_mae,
+                            tipoPagamento: dadosMatricula.cp_mt_tipo_pagamento || "parcelado",
+                            valorMensalidade: dadosMatricula.cp_mt_valor_mensalidade || "",
                         }));
 
                         // Buscar os dados do usuário vinculado à matrícula
@@ -296,6 +304,8 @@ const CadastroMatricula = ({
                     contatoPai: matriculaData.contatoPai,
                     nomeMae: matriculaData.nomeMae,
                     contatoMae: matriculaData.contatoMae,
+                    tipoPagamento: matriculaData.tipoPagamento,
+                    valorMensalidade: matriculaData.valorMensalidade,
                 };
 
                 const response = await axios.put(`${API_BASE_URL}/editar-matricula/${matriculaId}`, editObj);
@@ -937,7 +947,37 @@ const CadastroMatricula = ({
                                         </select>
                                     </Col>
                                     <Col md={12}>
-                                        <label htmlFor="valorCurso">Valor do Curso:</label>
+                                        <label htmlFor="tipoPagamento">Tipo de Pagamento:</label>
+                                        <select
+                                            id="tipoPagamento"
+                                            name="tipoPagamento"
+                                            value={matriculaData.tipoPagamento}
+                                            onChange={(e) => {
+                                                const novoTipo = e.target.value;
+                                                
+                                                // Se for modo edição e estiver mudando o tipo de pagamento
+                                                if (matriculaId && matriculaData.tipoPagamento !== novoTipo) {
+                                                    setPendingPaymentType(novoTipo);
+                                                    setShowPaymentChangeModal(true);
+                                                } else {
+                                                    // Caso contrário, aplica a mudança diretamente
+                                                    setMatriculaData({
+                                                        ...matriculaData,
+                                                        tipoPagamento: novoTipo,
+                                                    });
+                                                }
+                                            }}
+                                            className="form-control"
+                                            required
+                                        >
+                                            <option value="parcelado">Parcelado</option>
+                                            <option value="mensalidade">Mensalidade</option>
+                                        </select>
+                                    </Col>
+                                    <Col md={12}>
+                                        <label htmlFor="valorCurso">
+                                            {matriculaData.tipoPagamento === "mensalidade" ? "Valor Mensalidade:" : "Valor do Curso:"}
+                                        </label>
                                         <input
                                             type="number"
                                             id="valorCurso"
@@ -950,29 +990,32 @@ const CadastroMatricula = ({
                                                 })
                                             }
                                             className="form-control"
-                                            placeholder="Valor do Curso"
+                                            placeholder={matriculaData.tipoPagamento === "mensalidade" ? "Valor Mensalidade" : "Valor do Curso"}
                                             required
                                         />
                                     </Col>
-                                    <Col md={12}>
-                                        <label htmlFor="numeroParcelas">Número de Parcelas:</label>
-                                        <select
-                                            id="numeroParcelas"
-                                            name="numeroParcelas"
-                                            value={matriculaData.numeroParcelas || ''}
-                                            onChange={handleNumeroParcelasChange}
-                                            className="form-control"
-                                            disabled={!matriculaData.valorCurso}
-                                            required
-                                        >
-                                            <option value="">Selecione o número de parcelas</option>
-                                            {[...Array(13)].map((_, i) => (
-                                                <option key={i + 1} value={i + 1}>
-                                                    {i + 1}x
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </Col>
+                                    {matriculaData.tipoPagamento === "parcelado" && (
+                                        <Col md={12}>
+                                            <label htmlFor="numeroParcelas">Número de Parcelas:</label>
+                                            <select
+                                                id="numeroParcelas"
+                                                name="numeroParcelas"
+                                                value={matriculaData.numeroParcelas || ''}
+                                                onChange={handleNumeroParcelasChange}
+                                                className="form-control"
+                                                disabled={!matriculaData.valorCurso}
+                                                required
+                                            >
+                                                <option value="">Selecione o número de parcelas</option>
+                                                {[...Array(13)].map((_, i) => (
+                                                    <option key={i + 1} value={i + 1}>
+                                                        {i + 1}x
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </Col>
+                                    )}
+                                    
                                     <Col md={12}>
                                         <label htmlFor="primeiraParcela">Primeira Parcela:</label>
                                         <input
@@ -990,23 +1033,25 @@ const CadastroMatricula = ({
                                             required
                                         />
                                     </Col>
-                                    <Col md={12}>
-                                        <label htmlFor="valorParcela">Valor da Parcela:</label>
-                                        <input
-                                            type="text"
-                                            id="valorParcela"
-                                            name="valorParcela"
-                                            value={Number(matriculaData.valorParcela).toLocaleString(
-                                                "pt-BR",
-                                                {
-                                                    minimumFractionDigits: 2,
-                                                }
-                                            )}
-                                            className="form-control"
-                                            placeholder="Valor da Parcela"
-                                            readOnly
-                                        />
-                                    </Col>
+                                    {matriculaData.tipoPagamento === "parcelado" && (
+                                        <Col md={12}>
+                                            <label htmlFor="valorParcela">Valor da Parcela:</label>
+                                            <input
+                                                type="text"
+                                                id="valorParcela"
+                                                name="valorParcela"
+                                                value={Number(matriculaData.valorParcela).toLocaleString(
+                                                    "pt-BR",
+                                                    {
+                                                        minimumFractionDigits: 2,
+                                                    }
+                                                )}
+                                                className="form-control"
+                                                placeholder="Valor da Parcela"
+                                                readOnly
+                                            />
+                                        </Col>
+                                    )}
                                 </Row>
                             </div>
                         </div>
@@ -1142,6 +1187,53 @@ const CadastroMatricula = ({
                     </ul>
                 </Modal.Body>
             </Modal>
+            <Modal show={showPaymentChangeModal} onHide={() => setShowPaymentChangeModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Confirmar Mudança de Tipo de Pagamento</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Você está alterando de <strong>{matriculaData.tipoPagamento === "parcelado" ? "Parcelado" : "Mensalidade"}</strong> para <strong>{pendingPaymentType === "parcelado" ? "Parcelado" : "Mensalidade"}</strong>.</p>
+                    <p>Esta ação irá:</p>
+                    <ul>
+                        {pendingPaymentType === "mensalidade" ? (
+                            <>
+                                <li>Alterar o sistema de cobrança de parcelas fixas para mensalidades</li>
+                                <li>O valor será tratado como mensalidade fixa</li>
+                                <li>As configurações de parcelas serão removidas</li>
+                            </>
+                        ) : (
+                            <>
+                                <li>Alterar o sistema de cobrança de mensalidades para parcelas fixas</li>
+                                <li>O valor será dividido em parcelas</li>
+                                <li>Será necessário configurar o número de parcelas</li>
+                            </>
+                        )}
+                    </ul>
+                    <p>Deseja continuar com esta alteração?</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => {
+                        setShowPaymentChangeModal(false);
+                        setPendingPaymentType("");
+                    }}>
+                        Cancelar
+                    </Button>
+                    <Button variant="warning" onClick={() => {
+                        setMatriculaData({
+                            ...matriculaData,
+                            tipoPagamento: pendingPaymentType,
+                            numeroParcelas: "",
+                            valorParcela: 0,
+                        });
+                        setShowPaymentChangeModal(false);
+                        setPendingPaymentType("");
+                        toast.success(`Tipo de pagamento alterado para ${pendingPaymentType === "parcelado" ? "Parcelado" : "Mensalidade"}`);
+                    }}>
+                        Confirmar Alteração
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
             <Modal show={showConfirmModal} onHide={fecharModalConfirmacao} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>Confirmação</Modal.Title>
