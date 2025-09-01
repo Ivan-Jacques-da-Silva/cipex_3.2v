@@ -37,6 +37,12 @@ const HistoricoChamadas = ({ turmaId, historico, onUpdateStatus, alunos, atualiz
     hora: dayjs().format("HH:mm"),
     status: "Presente",
   });
+  const [formDataLote, setFormDataLote] = useState({
+    data: dayjs().format("YYYY-MM-DD"),
+    hora: dayjs().format("HH:mm"),
+    status: "Presente",
+  });
+  const [showChamadaLote, setShowChamadaLote] = useState(false);
   const isMobile = window.innerWidth <= 768;
 
   const confirmStatusUpdate = (chamadaId, status) => {
@@ -151,6 +157,46 @@ const HistoricoChamadas = ({ turmaId, historico, onUpdateStatus, alunos, atualiz
     }
   };
 
+  const handleCadastrarChamadaLote = async () => {
+    const { data, hora, status } = formDataLote;
+    if (!data || !hora || !status || !turmaId) {
+      toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    
+    if (alunos.length === 0) {
+      toast.error("Nenhum aluno encontrado nesta turma.");
+      return;
+    }
+
+    try {
+      // Cadastrar chamada para todos os alunos
+      const promises = alunos.map(aluno => 
+        axios.post(`${API_BASE_URL}/chamadas`, { 
+          turmaId, 
+          alunoId: aluno.cp_id, 
+          data, 
+          hora, 
+          status 
+        })
+      );
+      
+      await Promise.all(promises);
+      toast.success(`Chamada cadastrada para todos os ${alunos.length} alunos!`);
+      setFormDataLote({ data: dayjs().format("YYYY-MM-DD"), hora: dayjs().format("HH:mm"), status: "Presente" });
+      setShowChamadaLote(false);
+      atualizarHistorico();
+    } catch (error) {
+      console.error("Erro ao cadastrar chamadas em lote:", error);
+      toast.error("Erro ao cadastrar chamadas em lote. Tente novamente.");
+    }
+  };
+
+  const handleInputChangeLote = (e) => {
+    const { name, value } = e.target;
+    setFormDataLote((prev) => ({ ...prev, [name]: value }));
+  };
+
   // const atualizarResumos = async () => {
   //   try {
   //     const response = await axios.get(`${API_BASE_URL}/resumos/${turmaId}`);
@@ -177,70 +223,137 @@ const HistoricoChamadas = ({ turmaId, historico, onUpdateStatus, alunos, atualiz
     <div>
 
       <div className="mb-3 p-3 border rounded">
-        <h5>Cadastrar Nova Chamada</h5>
-        <Form className="row g-3">
-          <Form.Group controlId="alunoId" className="col-md-3">
-            <Form.Label>Aluno</Form.Label>
-            {alunos.length === 1 ? (
-              <Form.Control
-                type="text"
-                value={alunos[0].cp_nome}
-                readOnly
-                onFocus={() =>
-                  setFormData((prev) => ({ ...prev, alunoId: alunos[0].cp_id }))
-                }
-              />
-            ) : (
-              <Form.Select
-                name="alunoId"
-                value={formData.alunoId}
-                onChange={handleInputChange}
-              >
-                <option value="">Selecione um aluno</option>
-                {alunos.map((aluno) => (
-                  <option key={aluno.cp_id} value={aluno.cp_id}>
-                    {aluno.cp_nome}
-                  </option>
-                ))}
-              </Form.Select>
-            )}
-          </Form.Group>
-          <Form.Group controlId="data" className="col-md-3">
-            <Form.Label>Data</Form.Label>
-            <Form.Control
-              type="date"
-              name="data"
-              value={formData.data}
-              onChange={handleInputChange}
-            />
-          </Form.Group>
-          <Form.Group controlId="hora" className="col-md-3">
-            <Form.Label>Hora</Form.Label>
-            <Form.Control
-              type="time"
-              name="hora"
-              value={formData.hora}
-              onChange={handleInputChange}
-            />
-          </Form.Group>
-          <Form.Group controlId="status" className="col-md-3">
-            <Form.Label>Status</Form.Label>
-            <Form.Select
-              name="status"
-              value={formData.status}
-              onChange={handleInputChange}
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h5 className="mb-0">Cadastrar Nova Chamada</h5>
+          <div className="d-flex gap-2">
+            <Button 
+              variant={showChamadaLote ? "secondary" : "outline-primary"} 
+              size="sm"
+              onClick={() => setShowChamadaLote(false)}
             >
-              <option value="Presente">Presente</option>
-              <option value="Ausente">Ausente</option>
-              <option value="Justificado">Justificado</option>
-            </Form.Select>
-          </Form.Group>
-          <div className="col-12 text-end">
-            <Button variant="primary" onClick={handleCadastrarChamada}>
-              Cadastrar
+              Individual
+            </Button>
+            <Button 
+              variant={showChamadaLote ? "primary" : "outline-primary"} 
+              size="sm"
+              onClick={() => setShowChamadaLote(true)}
+            >
+              Todos os Alunos
             </Button>
           </div>
-        </Form>
+        </div>
+
+        {!showChamadaLote ? (
+          // Formulário individual
+          <Form className="row g-3">
+            <Form.Group controlId="alunoId" className="col-md-3">
+              <Form.Label>Aluno</Form.Label>
+              {alunos.length === 1 ? (
+                <Form.Control
+                  type="text"
+                  value={alunos[0].cp_nome}
+                  readOnly
+                  onFocus={() =>
+                    setFormData((prev) => ({ ...prev, alunoId: alunos[0].cp_id }))
+                  }
+                />
+              ) : (
+                <Form.Select
+                  name="alunoId"
+                  value={formData.alunoId}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Selecione um aluno</option>
+                  {alunos.map((aluno) => (
+                    <option key={aluno.cp_id} value={aluno.cp_id}>
+                      {aluno.cp_nome}
+                    </option>
+                  ))}
+                </Form.Select>
+              )}
+            </Form.Group>
+            <Form.Group controlId="data" className="col-md-3">
+              <Form.Label>Data</Form.Label>
+              <Form.Control
+                type="date"
+                name="data"
+                value={formData.data}
+                onChange={handleInputChange}
+              />
+            </Form.Group>
+            <Form.Group controlId="hora" className="col-md-3">
+              <Form.Label>Hora</Form.Label>
+              <Form.Control
+                type="time"
+                name="hora"
+                value={formData.hora}
+                onChange={handleInputChange}
+              />
+            </Form.Group>
+            <Form.Group controlId="status" className="col-md-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                name="status"
+                value={formData.status}
+                onChange={handleInputChange}
+              >
+                <option value="Presente">Presente</option>
+                <option value="Ausente">Ausente</option>
+                <option value="Justificado">Justificado</option>
+              </Form.Select>
+            </Form.Group>
+            <div className="col-12 text-end">
+              <Button variant="primary" onClick={handleCadastrarChamada}>
+                Cadastrar
+              </Button>
+            </div>
+          </Form>
+        ) : (
+          // Formulário em lote
+          <Form className="row g-3">
+            <div className="col-12">
+              <div className="alert alert-info">
+                <Icon icon="mdi:information" className="me-2" />
+                Será cadastrada chamada para todos os {alunos.length} alunos da turma com o status selecionado. Você pode editar individualmente depois.
+              </div>
+            </div>
+            <Form.Group controlId="dataLote" className="col-md-4">
+              <Form.Label>Data</Form.Label>
+              <Form.Control
+                type="date"
+                name="data"
+                value={formDataLote.data}
+                onChange={handleInputChangeLote}
+              />
+            </Form.Group>
+            <Form.Group controlId="horaLote" className="col-md-4">
+              <Form.Label>Hora</Form.Label>
+              <Form.Control
+                type="time"
+                name="hora"
+                value={formDataLote.hora}
+                onChange={handleInputChangeLote}
+              />
+            </Form.Group>
+            <Form.Group controlId="statusLote" className="col-md-4">
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                name="status"
+                value={formDataLote.status}
+                onChange={handleInputChangeLote}
+              >
+                <option value="Presente">Presente</option>
+                <option value="Ausente">Ausente</option>
+                <option value="Justificado">Justificado</option>
+              </Form.Select>
+            </Form.Group>
+            <div className="col-12 text-end">
+              <Button variant="primary" onClick={handleCadastrarChamadaLote}>
+                Cadastrar para Todos ({alunos.length} alunos)
+              </Button>
+            </div>
+          </Form>
+        )}
       </div>
 
       <div className={`d-flex`}>
