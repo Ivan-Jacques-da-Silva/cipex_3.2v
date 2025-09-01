@@ -2068,7 +2068,7 @@ app.post('/cadastrar-matricula', async (req, res) => {
     nomePai: cp_mt_nome_pai, contatoPai: cp_mt_contato_pai, nomeMae: cp_mt_nome_mae, contatoMae: cp_mt_contato_mae,
     horarioInicio: cp_mt_horario_inicio, horarioFim: cp_mt_horario_fim, nivelIdioma: cp_mt_nivel,
     primeiraDataPagamento: cp_mt_primeira_parcela, nomeUsuario: cp_mt_nome_usuario,
-    tipoPagamento: cp_mt_tipo_pagamento, diasSemana: cp_mt_dias_semana
+    tipoPagamento: cp_mt_tipo_pagamento, diasSemana: cp_mt_dias_semana, valorMensalidade: cp_mt_valor_mensalidade
   } = req.body;
 
   const newMatricula = {
@@ -2076,7 +2076,7 @@ app.post('/cadastrar-matricula', async (req, res) => {
     cp_mt_parcelas_pagas: 0, cp_status_matricula, cp_mt_escola, cp_mt_escolaridade, cp_mt_nivel,
     cp_mt_local_nascimento, cp_mt_rede_social, cp_mt_nome_pai, cp_mt_contato_pai, cp_mt_nome_mae,
     cp_mt_contato_mae, cp_mt_horario_inicio, cp_mt_horario_fim, cp_mt_excluido: 0,
-    cp_mt_primeira_parcela, cp_mt_nome_usuario, cp_mt_tipo_pagamento, cp_mt_dias_semana
+    cp_mt_primeira_parcela, cp_mt_nome_usuario, cp_mt_tipo_pagamento, cp_mt_dias_semana, cp_mt_valor_mensalidade
   };
 
   try {
@@ -2100,6 +2100,23 @@ app.post('/cadastrar-matricula', async (req, res) => {
         db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
         if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
         
+            db.commit(err => {
+              if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
+              res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
+            });
+          });
+        } else if (cp_mt_tipo_pagamento === "mensalidade" && cp_mt_valor_mensalidade > 0) {
+          let data = new Date(cp_mt_primeira_parcela);
+          const mensalidades = [];
+          
+          for (let i = 1; i <= 12; i++) {
+            mensalidades.push([matriculaId, new Date(data), 'à vencer', cp_mt_valor_mensalidade]);
+            data.setMonth(data.getMonth() + 1);
+          }
+          
+          db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [mensalidades], err => {
+            if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar mensalidades' }));
+            
             db.commit(err => {
               if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
               res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
@@ -2326,7 +2343,7 @@ app.put('/editar-matricula/:matriculaId', async (req, res) => {
     cursoId, usuarioId, cpfUsuario, valorCurso, numeroParcelas, status, escolaId, escolaridade,
     localNascimento, redeSocial, nomePai, contatoPai, nomeMae, contatoMae,
     horarioInicio, horarioFim, nivelIdioma, primeiraDataPagamento, nomeUsuario,
-    tipoPagamento, diasSemana
+    tipoPagamento, diasSemana, valorMensalidade
   } = req.body;
 
   try {
@@ -2341,12 +2358,12 @@ app.put('/editar-matricula/:matriculaId', async (req, res) => {
           cp_mt_quantas_parcelas=?, cp_status_matricula=?, cp_mt_escola=?, cp_mt_escolaridade=?, cp_mt_nivel=?,
           cp_mt_local_nascimento=?, cp_mt_rede_social=?, cp_mt_nome_pai=?, cp_mt_contato_pai=?, cp_mt_nome_mae=?,
           cp_mt_contato_mae=?, cp_mt_horario_inicio=?, cp_mt_horario_fim=?, cp_mt_primeira_parcela=?, cp_mt_nome_usuario=?,
-          cp_mt_tipo_pagamento=?, cp_mt_dias_semana=? WHERE cp_mt_id=?`;
+          cp_mt_tipo_pagamento=?, cp_mt_dias_semana=?, cp_mt_valor_mensalidade=? WHERE cp_mt_id=?`;
 
         const valores = [
           cursoId, usuarioId, cpfUsuario, valorCurso, numeroParcelas, status, escolaId, escolaridade, nivelIdioma,
           localNascimento, redeSocial, nomePai, contatoPai, nomeMae, contatoMae, horarioInicio, horarioFim,
-          primeiraDataPagamento, nomeUsuario, tipoPagamento, diasSemana, matriculaId
+          primeiraDataPagamento, nomeUsuario, tipoPagamento, diasSemana, valorMensalidade, matriculaId
         ];
 
         db.query(query, valores, err => {
@@ -2355,22 +2372,45 @@ app.put('/editar-matricula/:matriculaId', async (req, res) => {
           db.query('DELETE FROM cp_matriculaParcelas WHERE cp_mt_id = ?', [matriculaId], err => {
             if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao remover parcelas' }));
 
-            const valorParcela = parseFloat((valorCurso / numeroParcelas).toFixed(2));
-            const [ano, mes, dia] = primeiraDataPagamento.split('-').map(Number);
-            const parcelas = [];
+            if (tipoPagamento === "parcelado") {
+              const valorParcela = parseFloat((valorCurso / numeroParcelas).toFixed(2));
+              const [ano, mes, dia] = primeiraDataPagamento.split('-').map(Number);
+              const parcelas = [];
 
-            for (let i = 0; i < numeroParcelas; i++) {
-              const d = new Date(ano, mes - 1 + i, dia);
-              parcelas.push([matriculaId, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 'à vencer', valorParcela]);
-            }
+              for (let i = 0; i < numeroParcelas; i++) {
+                const d = new Date(ano, mes - 1 + i, dia);
+                parcelas.push([matriculaId, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 'à vencer', valorParcela]);
+              }
 
-            db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
-              if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
+              db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
+                if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
+                db.commit(err => {
+                  if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
+                  res.send({ msg: 'Matrícula e parcelas atualizadas com sucesso' });
+                });
+              });
+            } else if (tipoPagamento === "mensalidade") {
+              const [ano, mes, dia] = primeiraDataPagamento.split('-').map(Number);
+              const mensalidades = [];
+
+              for (let i = 0; i < 12; i++) {
+                const d = new Date(ano, mes - 1 + i, dia);
+                mensalidades.push([matriculaId, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 'à vencer', valorMensalidade]);
+              }
+
+              db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [mensalidades], err => {
+                if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar mensalidades' }));
+                db.commit(err => {
+                  if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
+                  res.send({ msg: 'Matrícula e mensalidades atualizadas com sucesso' });
+                });
+              });
+            } else {
               db.commit(err => {
                 if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
-                res.send({ msg: 'Matrícula e parcelas atualizadas com sucesso' });
+                res.send({ msg: 'Matrícula atualizada com sucesso' });
               });
-            });
+            }
           });
         });
       });
