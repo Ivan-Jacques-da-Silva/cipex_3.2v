@@ -4,9 +4,11 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import ThemeToggleButton from "../helper/ThemeToggleButton";
 import { API_BASE_URL } from './../components/config';
 import logoPreo from './../img/logoPreto.png';
+import logoColorido from './../img/logoColorido.png';
 import logoBranco from './../img/logo.png'
 import logoBrancoFavicon from './../img/FaviconPreto.png'
 import logoPretoFavicon from './../img/FaviconBranco.png'
+import logoPretoColorido from './../img/favicon.png'
 import { clearBirthdayFireworksSession } from '../components/child/BirthdayFireworks';
 import EditProfileModal from '../components/child/EditProfileModal';
 
@@ -175,7 +177,7 @@ const MasterLayout = ({ children }) => {
         <div>
           <Link to="/home" className="sidebar-logo">
             <img
-              src={logoPreo}
+              src={logoColorido}
               alt="site logo"
               className="light-logo"
             />
@@ -187,7 +189,7 @@ const MasterLayout = ({ children }) => {
 
 
             <img
-              src={theme === 'dark' ? logoPretoFavicon : logoBrancoFavicon}
+              src={theme === 'dark' ? logoBrancoFavicon : logoPretoColorido}
               alt="site logo"
               className="logo-icon"
             />
@@ -420,7 +422,7 @@ const MasterLayout = ({ children }) => {
                       className="w-40-px h-40-px object-fit-cover rounded-circle"
                     />
                   </button>
-                  <div className="dropdown-menu to-top dropdown-menu-sm">
+                  <div style={{zIndex:"99!important"}} className="dropdown-menu to-top dropdown-menu-sm">
                     <div className="py-12 px-16 radius-8 bg-primary-50 mb-16 d-flex align-items-center justify-content-between gap-2">
                       <div>
                         <h6 className="text-lg text-primary-light fw-semibold mb-2">

@@ -44,10 +44,11 @@ const Turmas = ({ turmas, onSelectTurma }) => {
   return (
     <>
       <p>Selecione sua turma</p>
-      <InputGroup>
+      <InputGroup style={{zIndex:"0 !important"}}>
         <Form.Control
           as="select"
-           defaultValue=""
+          defaultValue=""
+          style={{ zIndex: "0 !important" }}
           onChange={(e) => handleSelectChange(e.target.value)}
         >
           <option value="" disabled>
@@ -64,9 +65,10 @@ const Turmas = ({ turmas, onSelectTurma }) => {
           className="d-flex align-items-center"
           onClick={handleShowInfo}
           disabled={!selectedTurma}
+          style={{ zIndex: "0 !important" }}
           title="Ver informações da turma selecionada"
         >
-          <Icon icon="mdi:information-outline" width="20" />
+          <Icon icon="mdi:information-outline" style={{zIndex:"0 !important"}} width="20" />
         </Button>
       </InputGroup>
 

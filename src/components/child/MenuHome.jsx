@@ -37,12 +37,20 @@ const MenuHome = () => {
                         style={{ cursor: 'pointer' }} 
                     >
                         <div className="card-body p-20">
-                            <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                            <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 d-none d-sm-flex">
                                 <div>
                                     <p className="mb-0">{item.texto}</p>
                                 </div>
                                 <div className={`w-50-px h-50-px ${item.classe} rounded-circle d-flex justify-content-center align-items-center`}>
                                     <Icon icon={item.icone} className="text-white text-2xl mb-0" />
+                                </div>
+                            </div>
+                            <div className="d-flex d-sm-none flex-column align-items-center text-center gap-2">
+                                <div className={`w-40-px h-40-px ${item.classe} rounded-circle d-flex justify-content-center align-items-center`}>
+                                    <Icon icon={item.icone} className="text-white text-lg mb-0" />
+                                </div>
+                                <div>
+                                    <p className="mb-0 text-sm">{item.texto}</p>
                                 </div>
                             </div>
                         </div>
@@ -51,7 +59,7 @@ const MenuHome = () => {
             ));
     };
 
-    return <div className="row row-cols-xxxl-5 row-cols-lg-3 row-cols-sm-2 row-cols-1 gy-4">{renderMenu()}</div>;
+    return <div className="row row-cols-xxxl-5 row-cols-lg-3 row-cols-sm-2 row-cols-2 gy-4">{renderMenu()}</div>;
 };
 
 export default MenuHome;
