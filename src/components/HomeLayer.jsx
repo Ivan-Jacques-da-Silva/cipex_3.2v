@@ -7,12 +7,12 @@ const ElementoHome = () => {
     const [userBirthday, setUserBirthday] = useState(null);
 
     useEffect(() => {
-        // SISTEMA FORÇADO PARA TESTE - REMOVER DEPOIS
-        // Limpa o localStorage para permitir mostrar novamente
-        localStorage.removeItem('birthday-fireworks-shown');
+        // SISTEMA FORÇADO PARA TESTE - Sempre mostra os confetes
+        // Limpa o sessionStorage para permitir mostrar novamente
+        sessionStorage.removeItem('birthday-fireworks-shown-session');
         
-        // Define a data de aniversário como hoje para forçar o teste
-        setUserBirthday(new Date().toISOString().split('T')[0]);
+        // Define uma data qualquer para forçar o teste
+        setUserBirthday('2025-09-01');
         
         // CÓDIGO ORIGINAL COMENTADO PARA TESTE:
         // const userData = localStorage.getItem('userData');
