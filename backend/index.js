@@ -341,6 +341,39 @@ app.put('/edit-user/:userId', (req, res) => {
   });
 });
 
+// Rota para atualizar perfil do usuário logado
+app.put('/update-profile/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const { cp_nome, cp_email, cp_login, cp_password } = req.body;
+
+  // Monta o objeto de atualização
+  const updateData = {
+    cp_nome,
+    cp_email,
+    cp_login
+  };
+
+  // Só inclui senha se foi fornecida
+  if (cp_password && cp_password.trim() !== '') {
+    updateData.cp_password = cp_password;
+  }
+
+  db.query('UPDATE cp_usuarios SET ? WHERE cp_id = ?', [updateData, userId], (err, result) => {
+    if (err) {
+      console.error('Erro ao atualizar perfil:', err);
+      res.status(500).json({ error: 'Erro ao atualizar perfil' });
+      return;
+    }
+    
+    if (result.affectedRows === 0) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+    
+    res.status(200).json({ message: 'Perfil atualizado com sucesso' });
+  });
+});
+
 
 /* ESCOLA */
 

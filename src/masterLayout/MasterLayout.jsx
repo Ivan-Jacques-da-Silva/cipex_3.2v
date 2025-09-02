@@ -8,6 +8,7 @@ import logoBranco from './../img/logo.png'
 import logoBrancoFavicon from './../img/FaviconPreto.png'
 import logoPretoFavicon from './../img/FaviconBranco.png'
 import { clearBirthdayFireworksSession } from '../components/child/BirthdayFireworks';
+import EditProfileModal from '../components/child/EditProfileModal';
 
 const MasterLayout = ({ children }) => {
   let [sidebarActive, seSidebarActive] = useState(false);
@@ -15,6 +16,8 @@ const MasterLayout = ({ children }) => {
   const location = useLocation(); // Hook to get the current route
   const navigate = useNavigate();
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [userInfo, setUserInfo] = useState(null);
 
   const permissoesMenu = {
     "gestao": [1, 2, 3],   // Somente tipos 1, 2 e 3 podem ver
@@ -117,6 +120,32 @@ const MasterLayout = ({ children }) => {
 
 
 
+
+  const fetchUserInfo = async () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        setUserInfo(userData);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados do usuário:', error);
+    }
+  };
+
+  const handleOpenProfileModal = () => {
+    fetchUserInfo();
+    setShowEditProfileModal(true);
+  };
+
+  const handleUserUpdate = (updatedUser) => {
+    setUserInfo(updatedUser);
+    // Força atualização da interface
+    window.location.reload();
+  };
 
   const handleLogout = () => {
     // Limpar o localStorage ao clicar em "Sair"
@@ -423,33 +452,39 @@ const MasterLayout = ({ children }) => {
                     </div>
                     <ul className="to-top-list">
                       <li>
-                        <Link
+                        <button
                           className="dropdown-item text-black px-0 py-8 hover-bg-transparent hover-text-primary d-flex align-items-center gap-3"
-                          // to="/view-profile"
-                          to="#"
+                          onClick={handleOpenProfileModal}
+                          style={{ border: 'none', background: 'none', width: '100%' }}
                         >
                           <Icon icon="solar:user-linear" className="icon text-xl" /> Meu Perfil
-                        </Link>
+                        </button>
                       </li>
                       <li>
-                        <Link
-                          className="dropdown-item text-black px-0 py-8 hover-bg-transparent hover-text-primary d-flex align-items-center gap-3"
-                          // to="/email"
-                          to="#"
+                        <span
+                          className="dropdown-item text-black px-0 py-8 d-flex align-items-center gap-3"
+                          style={{ 
+                            cursor: "not-allowed", 
+                            opacity: 0.5,
+                            pointerEvents: "none"
+                          }}
                         >
                           <Icon icon="tabler:message-check" className="icon text-xl" />{" "}
                           Caixa de Entrada
-                        </Link>
+                        </span>
                       </li>
                       <li>
-                        <Link
-                          className="dropdown-item text-black px-0 py-8 hover-bg-transparent hover-text-primary d-flex align-items-center gap-3"
-                          // to="/company"
-                          to="#"
+                        <span
+                          className="dropdown-item text-black px-0 py-8 d-flex align-items-center gap-3"
+                          style={{ 
+                            cursor: "not-allowed", 
+                            opacity: 0.5,
+                            pointerEvents: "none"
+                          }}
                         >
                           <Icon icon="icon-park-outline:setting-two" className="icon text-xl" />
                           Configurações
-                        </Link>
+                        </span>
                       </li>
                       <li>
                         <button
@@ -486,6 +521,14 @@ const MasterLayout = ({ children }) => {
           </div>
         </footer>
       </main>
+
+      {/* Modal de Edição de Perfil */}
+      <EditProfileModal
+        show={showEditProfileModal}
+        onHide={() => setShowEditProfileModal(false)}
+        userInfo={userInfo}
+        onUserUpdate={handleUserUpdate}
+      />
     </section>
   );
 };

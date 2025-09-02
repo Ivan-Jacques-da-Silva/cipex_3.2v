@@ -19,7 +19,6 @@ import { API_BASE_URL } from "./config";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-
 function MaterialExtra() {
   const [thumbnail, setThumbnail] = useState(null);
   const [title, setTitle] = useState("");
@@ -58,7 +57,9 @@ function MaterialExtra() {
   const handleCodigoFilterChange = (event) => {
     const codigo = event.target.name;
     setSelectedCodigos((prev) =>
-      prev.includes(codigo) ? prev.filter(c => c !== codigo) : [...prev, codigo]
+      prev.includes(codigo)
+        ? prev.filter((c) => c !== codigo)
+        : [...prev, codigo],
     );
   };
 
@@ -82,7 +83,6 @@ function MaterialExtra() {
     return texto.length > max ? texto.substring(0, max) + "..." : texto;
   };
 
-
   // const handleOpenVideo = (url) => {
   //   const videoUrlNormalizado = normalizarUrlYoutube(url);
   //   setVideoUrl(videoUrlNormalizado);
@@ -95,7 +95,6 @@ function MaterialExtra() {
     setVideoId(videoId);
     setOpen(true);
   };
-
 
   const handleClose = () => {
     setShowPDF(false);
@@ -111,7 +110,10 @@ function MaterialExtra() {
         if (pdfUrl) {
           // Certifique-se de que `API_BASE_URL` está correto
           const relativePath = pdfUrl.replace(API_BASE_URL, ""); // Caminho relativo
-          window.open(`${API_BASE_URL}/proxy-download?url=${encodeURIComponent(relativePath)}`, "_blank");
+          window.open(
+            `${API_BASE_URL}/proxy-download?url=${encodeURIComponent(relativePath)}`,
+            "_blank",
+          );
           successCount++;
         }
       }
@@ -128,9 +130,6 @@ function MaterialExtra() {
     }
   };
 
-
-
-
   const handleDelete = async (id) => {
     try {
       await axios.delete(`${API_BASE_URL}/material-extra/${id}`);
@@ -142,8 +141,6 @@ function MaterialExtra() {
     }
   };
 
-
-
   const fetchMaterials = async () => {
     try {
       const tipoUsuario = localStorage.getItem("userType");
@@ -153,29 +150,39 @@ function MaterialExtra() {
       const todosMateriais = res.data;
 
       // Admin vê tudo
-      if (tipoUsuario === "1" || localStorage.getItem("userName") === "Andrea Carneiro Monteiro Dumoncel") {
-
+      if (
+        tipoUsuario === "1" ||
+        localStorage.getItem("userName") === "Andrea Carneiro Monteiro Dumoncel"
+      ) {
         setMaterials(todosMateriais);
         setFilteredMaterials(todosMateriais);
         return;
       }
 
       // Professor: busca cursos e filtra
-      const turmasRes = await axios.get(`${API_BASE_URL}/cp_turmas/professor/${professorId}`);
-      const cursoIds = turmasRes.data.map(t => t.cp_tr_curso_id);
+      const turmasRes = await axios.get(
+        `${API_BASE_URL}/cp_turmas/professor/${professorId}`,
+      );
+      const cursoIds = turmasRes.data.map((t) => t.cp_tr_curso_id);
 
-      const cursosRes = await axios.post(`${API_BASE_URL}/cursos/batch`, { cursoIds });
-      const nomesCursos = cursosRes.data.map(curso => curso.cp_nome_curso);
+      const cursosRes = await axios.post(`${API_BASE_URL}/cursos/batch`, {
+        cursoIds,
+      });
+      const nomesCursos = cursosRes.data.map((curso) => curso.cp_nome_curso);
 
-      const codigosPermitidos = [...new Set(
-        nomesCursos.map(nome => mapaCursosParaCodigo[nome]).filter(Boolean)
-      )];
+      const codigosPermitidos = [
+        ...new Set(
+          nomesCursos.map((nome) => mapaCursosParaCodigo[nome]).filter(Boolean),
+        ),
+      ];
 
-      const materiaisPermitidos = todosMateriais.filter(material => {
+      const materiaisPermitidos = todosMateriais.filter((material) => {
         const codigosMaterial = material.cp_mat_extra_codigos
-          ? material.cp_mat_extra_codigos.split(",").map(c => c.trim())
+          ? material.cp_mat_extra_codigos.split(",").map((c) => c.trim())
           : [];
-        return codigosMaterial.some(codigo => codigosPermitidos.includes(codigo));
+        return codigosMaterial.some((codigo) =>
+          codigosPermitidos.includes(codigo),
+        );
       });
 
       setMaterials(materiaisPermitidos);
@@ -185,11 +192,9 @@ function MaterialExtra() {
     }
   };
 
-
   useEffect(() => {
     fetchMaterials();
   }, []);
-
 
   const handleThumbnailChange = (event) => {
     if (event.target.files && event.target.files[0]) {
@@ -202,7 +207,9 @@ function MaterialExtra() {
     const updatedPdfs = [...pdfs];
 
     files.forEach((file, index) => {
-      const slot = updatedPdfs.findIndex((pdf) => pdf === null || pdf === undefined);
+      const slot = updatedPdfs.findIndex(
+        (pdf) => pdf === null || pdf === undefined,
+      );
       if (slot !== -1) {
         updatedPdfs[slot] = file;
       } else {
@@ -212,7 +219,6 @@ function MaterialExtra() {
 
     setPdfs(updatedPdfs);
   };
-
 
   const handleEdit = (material) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -244,7 +250,9 @@ function MaterialExtra() {
     formData.append("title", title);
     formData.append("description", description);
 
-    const formattedDate = date ? new Date(date).toISOString().split("T")[0] : "";
+    const formattedDate = date
+      ? new Date(date).toISOString().split("T")[0]
+      : "";
     formData.append("date", formattedDate);
 
     formData.append("youtube_url", youtubeUrl);
@@ -266,7 +274,7 @@ function MaterialExtra() {
           formData,
           {
             headers: { "Content-Type": "multipart/form-data" },
-          }
+          },
         );
         toast.success("Material atualizado com sucesso!");
       } else {
@@ -291,7 +299,7 @@ function MaterialExtra() {
     setSelectedCategories((prevCategories) =>
       prevCategories.includes(category)
         ? prevCategories.filter((c) => c !== category)
-        : [...prevCategories, category]
+        : [...prevCategories, category],
     );
   };
 
@@ -302,7 +310,7 @@ function MaterialExtra() {
     { valor: "CES", etiqueta: "CES" },
     { valor: "CONVERSATION", etiqueta: "CONVERSATION" },
     { valor: "ESPANHOL", etiqueta: "ESPANHOL" },
-    { valor: "DEUTSCH", etiqueta: "DEUTSCH" }
+    { valor: "DEUTSCH", etiqueta: "DEUTSCH" },
   ];
 
   const mapaCursosParaCodigo = {
@@ -333,13 +341,13 @@ function MaterialExtra() {
     "ASPEKTE B2": "DEUTSCH",
 
     "NUEVO ESPAÑOL EN MARCHA 1": "ESPANHOL",
-    "NUEVO ESPAÑOL EN MARCHA 2": "ESPANHOL"
+    "NUEVO ESPAÑOL EN MARCHA 2": "ESPANHOL",
   };
 
   // Manipulador de seleção
   const lidarCheckBox = (valor) => {
     setCodigos((prev) =>
-      prev.includes(valor) ? prev.filter((v) => v !== valor) : [...prev, valor]
+      prev.includes(valor) ? prev.filter((v) => v !== valor) : [...prev, valor],
     );
   };
 
@@ -348,23 +356,42 @@ function MaterialExtra() {
     const userName = localStorage.getItem("userName");
     const professorId = localStorage.getItem("userId");
 
-    if (tipoUsuario !== "1" && userName !== "Andrea Carneiro Monteiro Dumoncel") {
-      axios.get(`${API_BASE_URL}/cp_turmas/professor/${professorId}`)
-        .then(res => {
-          const cursosDoProfessor = res.data.map(turma => turma.cp_tr_curso_id);
+    if (
+      tipoUsuario !== "1" &&
+      userName !== "Andrea Carneiro Monteiro Dumoncel"
+    ) {
+      axios
+        .get(`${API_BASE_URL}/cp_turmas/professor/${professorId}`)
+        .then((res) => {
+          const cursosDoProfessor = res.data.map(
+            (turma) => turma.cp_tr_curso_id,
+          );
 
-          axios.post(`${API_BASE_URL}/cursos/batch`, { cursoIds: cursosDoProfessor })
-            .then(resCursos => {
-              const nomesCursos = resCursos.data.map(curso => curso.cp_nome_curso);
-              const codigosPermitidos = [...new Set(
-                nomesCursos.map(nome => mapaCursosParaCodigo[nome]).filter(Boolean)
-              )];
+          axios
+            .post(`${API_BASE_URL}/cursos/batch`, {
+              cursoIds: cursosDoProfessor,
+            })
+            .then((resCursos) => {
+              const nomesCursos = resCursos.data.map(
+                (curso) => curso.cp_nome_curso,
+              );
+              const codigosPermitidos = [
+                ...new Set(
+                  nomesCursos
+                    .map((nome) => mapaCursosParaCodigo[nome])
+                    .filter(Boolean),
+                ),
+              ];
 
-              const materiaisFiltrados = materials.filter(material => {
+              const materiaisFiltrados = materials.filter((material) => {
                 const codigosMaterial = material.cp_mat_extra_codigos
-                  ? material.cp_mat_extra_codigos.split(",").map(c => c.trim())
+                  ? material.cp_mat_extra_codigos
+                      .split(",")
+                      .map((c) => c.trim())
                   : [];
-                return codigosMaterial.some(c => codigosPermitidos.includes(c));
+                return codigosMaterial.some((c) =>
+                  codigosPermitidos.includes(c),
+                );
               });
 
               setFilteredMaterials(materiaisFiltrados);
@@ -372,8 +399,6 @@ function MaterialExtra() {
         });
     }
   }, [materials]);
-
-
 
   const formatDateString = (dateString) => {
     const date = new Date(dateString);
@@ -389,17 +414,19 @@ function MaterialExtra() {
           material.cp_mat_extra_categories
             .split(",")
             .map((cat) => cat.trim())
-            .includes(category)
-        )
+            .includes(category),
+        ),
       );
     }
 
     if (selectedCodigos.length > 0) {
       filtered = filtered.filter((material) => {
         const materialCodigos = material.cp_mat_extra_codigos
-          ? material.cp_mat_extra_codigos.split(",").map(c => c.trim())
+          ? material.cp_mat_extra_codigos.split(",").map((c) => c.trim())
           : [];
-        return selectedCodigos.some(codigo => materialCodigos.includes(codigo));
+        return selectedCodigos.some((codigo) =>
+          materialCodigos.includes(codigo),
+        );
       });
     }
 
@@ -407,7 +434,7 @@ function MaterialExtra() {
       filtered = filtered.filter((material) =>
         material.cp_mat_extra_title
           .toLowerCase()
-          .includes(searchTerm.toLowerCase())
+          .includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -425,11 +452,11 @@ function MaterialExtra() {
   };
 
   const normalizarUrlYoutube = (url) => {
-    let videoId = '';
-    if (url.includes('watch?v=')) {
-      videoId = url.split('watch?v=')[1].split('&')[0];
-    } else if (url.includes('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1].split('?')[0];
+    let videoId = "";
+    if (url.includes("watch?v=")) {
+      videoId = url.split("watch?v=")[1].split("&")[0];
+    } else if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1].split("?")[0];
     }
     return `https://www.youtube.com/embed/${videoId}`;
   };
@@ -467,7 +494,9 @@ function MaterialExtra() {
         <Col xs={12} md={3} className="border-end p-3">
           {/* <h5 className="text-center fw-bold mt-3">Filtrar</h5> */}
           <Form>
-            {(userType === 1 || localStorage.getItem("userName") === "Andrea Carneiro Monteiro Dumoncel") && (
+            {(userType === 1 ||
+              localStorage.getItem("userName") ===
+                "Andrea Carneiro Monteiro Dumoncel") && (
               <Card className="mb-3 shadow-sm">
                 <Card.Header className="text-white">
                   <h6 className="mb-0">Filtrar por Categoria</h6>
@@ -489,7 +518,11 @@ function MaterialExtra() {
                 </Card.Body>
               </Card>
             )}
-            {materials.some(m => m.cp_mat_extra_categories && m.cp_mat_extra_categories.trim() !== "") && (
+            {materials.some(
+              (m) =>
+                m.cp_mat_extra_categories &&
+                m.cp_mat_extra_categories.trim() !== "",
+            ) && (
               <Card className="mb-3 shadow-sm h-100 p-0 radius-12">
                 <Card.Header className="border-bottom bg-base py-16 px-24 d-flex align-items-center flex-wrap gap-3 justify-content-between">
                   <h6 className="mb-0">TAG's</h6>
@@ -503,9 +536,12 @@ function MaterialExtra() {
                             .map((m) => m.cp_mat_extra_categories)
                             .filter(Boolean) // remove null/vazio
                             .flatMap((cats) =>
-                              cats.split(",").map((cat) => cat.trim()).filter(Boolean)
-                            )
-                        )
+                              cats
+                                .split(",")
+                                .map((cat) => cat.trim())
+                                .filter(Boolean),
+                            ),
+                        ),
                       ).map((category, index) => (
                         <Form.Check
                           key={index}
@@ -524,7 +560,6 @@ function MaterialExtra() {
                       ))}
                     </Form.Group>
                   </div>
-
                 </Card.Body>
               </Card>
             )}
@@ -562,7 +597,11 @@ function MaterialExtra() {
             </Card>
 
             <div className="d-grid gap-2">
-              <Button variant="primary" onClick={applyFilter} className="mt-3 w-100">
+              <Button
+                variant="primary"
+                onClick={applyFilter}
+                className="mt-3 w-100"
+              >
                 Aplicar Filtro
               </Button>
               <Button
@@ -581,11 +620,11 @@ function MaterialExtra() {
           </Form>
         </Col>
 
-
         <Col xs={12} md={9}>
           <Card className="my-3">
-          {(userType === 1 || localStorage.getItem("userName") === "Andrea Carneiro Monteiro Dumoncel") && (
-
+            {(userType === 1 ||
+              localStorage.getItem("userName") ===
+                "Andrea Carneiro Monteiro Dumoncel") && (
               <Card.Body>
                 <Form onSubmit={handleSubmit}>
                   <Row>
@@ -634,11 +673,17 @@ function MaterialExtra() {
                           />
                         ) : (
                           <>
-                            <Icon icon="carbon:add-alt" className="text-secondary text-xl" />
-                            <span className="text-secondary mt-2" style={{ fontSize: "12px", fontWeight: "bold" }}>
-                              Adicionar Miniatura<br />
+                            <Icon
+                              icon="carbon:add-alt"
+                              className="text-secondary text-xl"
+                            />
+                            <span
+                              className="text-secondary mt-2"
+                              style={{ fontSize: "12px", fontWeight: "bold" }}
+                            >
+                              Adicionar Miniatura
+                              <br />
                               (300px / 180px)
-
                             </span>
                           </>
                         )}
@@ -755,8 +800,14 @@ function MaterialExtra() {
                               }}
                               onChange={(e) => handlePdfChange(e)}
                             />
-                            <Icon icon="carbon:add-alt" className="text-secondary text-xl" />
-                            <span className="text-secondary mt-2" style={{ fontSize: "12px", fontWeight: "bold" }}>
+                            <Icon
+                              icon="carbon:add-alt"
+                              className="text-secondary text-xl"
+                            />
+                            <span
+                              className="text-secondary mt-2"
+                              style={{ fontSize: "12px", fontWeight: "bold" }}
+                            >
                               Adicionar
                             </span>
                           </div>
@@ -809,15 +860,22 @@ function MaterialExtra() {
                           onChange={(e) => setCategories(e.target.value)}
                         />
                       </Form.Group>
-                      <Form.Group controlId="formPermitirDownload" className="mt-3">
+                      <Form.Group
+                        controlId="formPermitirDownload"
+                        className="mt-3"
+                      >
                         <Form.Label>Permitir Download</Form.Label>
                         <Form.Check
                           type="switch"
                           id="custom-switch"
-                          label={<span style={{ marginLeft: "10px" }}>Permitir</span>}
+                          label={
+                            <span style={{ marginLeft: "10px" }}>Permitir</span>
+                          }
                           className="custom-switch"
                           checked={permitirDownload}
-                          onChange={(e) => setPermitirDownload(e.target.checked)}
+                          onChange={(e) =>
+                            setPermitirDownload(e.target.checked)
+                          }
                         />
                       </Form.Group>
                     </Col>
@@ -827,25 +885,30 @@ function MaterialExtra() {
                     type="submit"
                     className="mt-3 float-end"
                   >
-                    {editingMaterialId ? "Atualizar Material" : "Cadastrar Material"}
+                    {editingMaterialId
+                      ? "Atualizar Material"
+                      : "Cadastrar Material"}
                   </Button>
                 </Form>
               </Card.Body>
             )}
           </Card>
 
-
-
           <Col>
-
             {filteredMaterials.length === 0 ? (
-              <p className="text-center">Nenhum material disponivel no momento</p>
+              <p className="text-center">
+                Nenhum material disponivel no momento
+              </p>
             ) : (
               filteredMaterials.map((material, index) => (
                 <Card className="my-3" key={index}>
                   <Card.Body>
                     <Row className="g-3 flex-column flex-md-row">
-                      <Col xs={12} md={4} className="d-flex justify-content-center">
+                      <Col
+                        xs={12}
+                        md={4}
+                        className="d-flex justify-content-center"
+                      >
                         {material.cp_mat_extra_thumbnail && (
                           <div
                             style={{
@@ -875,12 +938,17 @@ function MaterialExtra() {
                             {material.cp_mat_extra_youtube_url && (
                               <Link
                                 onClick={() =>
-                                  handleOpenVideo(material.cp_mat_extra_youtube_url)
+                                  handleOpenVideo(
+                                    material.cp_mat_extra_youtube_url,
+                                  )
                                 }
                                 to="#"
                                 className="magnific-video bordered-shadow w-56-px h-56-px bg-white rounded-circle d-flex justify-content-center align-items-center position-absolute start-50 top-50 translate-middle z-1"
                               >
-                                <Icon icon="ion:play" className="text-primary-600 text-xxl" />
+                                <Icon
+                                  icon="ion:play"
+                                  className="text-primary-600 text-xxl"
+                                />
                               </Link>
                             )}
                           </div>
@@ -899,20 +967,32 @@ function MaterialExtra() {
                             <>
                               <h6 style={{ fontWeight: "bold" }}>TAG's</h6>
                               <p>
-                                {material.cp_mat_extra_categories.split(",").map((cat, index) => (
-                                  <span key={index} className="badge bg-secondary me-1">
-                                    {cat.trim()}
-                                  </span>
-                                ))}
+                                {material.cp_mat_extra_categories
+                                  .split(",")
+                                  .map((cat, index) => (
+                                    <span
+                                      key={index}
+                                      className="badge bg-secondary me-1"
+                                    >
+                                      {cat.trim()}
+                                    </span>
+                                  ))}
                               </p>
                               <hr style={{ paddingBottom: "20px" }} />
                             </>
                           )}
                         <div className="d-flex flex-wrap gap-2">
-                          {[material.cp_mat_extra_pdf1, material.cp_mat_extra_pdf2, material.cp_mat_extra_pdf3]
+                          {[
+                            material.cp_mat_extra_pdf1,
+                            material.cp_mat_extra_pdf2,
+                            material.cp_mat_extra_pdf3,
+                          ]
                             .filter(Boolean)
                             .map((pdfUrl, index) => (
-                              <div key={index} className="d-flex flex-wrap align-items-center gap-0">
+                              <div
+                                key={index}
+                                className="d-flex flex-wrap align-items-center gap-0"
+                              >
                                 <Button
                                   variant="primary"
                                   className="px-3"
@@ -921,7 +1001,9 @@ function MaterialExtra() {
                                     flex: "1 1 auto",
                                     minWidth: "150px",
                                     borderRadius:
-                                      Number(material.cp_mat_extra_permitirDownload) === 1
+                                      Number(
+                                        material.cp_mat_extra_permitirDownload,
+                                      ) === 1
                                         ? "5px 0 0 5px"
                                         : "5px",
                                     border: "none",
@@ -933,7 +1015,9 @@ function MaterialExtra() {
                                     : truncarTexto(pdfUrl.name, 15)}
                                 </Button>
 
-                                {Number(material.cp_mat_extra_permitirDownload) === 1 && (
+                                {Number(
+                                  material.cp_mat_extra_permitirDownload,
+                                ) === 1 && (
                                   <Button
                                     variant="success"
                                     onClick={() => handleDownload([pdfUrl])}
@@ -963,7 +1047,9 @@ function MaterialExtra() {
                             </Button>
                             <Button
                               variant="danger"
-                              onClick={() => handleDelete(material.cp_mat_extra_id)}
+                              onClick={() =>
+                                handleDelete(material.cp_mat_extra_id)
+                              }
                               className="d-flex align-items-center"
                               style={{ fontSize: "0.9rem" }}
                             >
@@ -979,7 +1065,6 @@ function MaterialExtra() {
               ))
             )}
           </Col>
-
         </Col>
       </Row>
       <Modal
@@ -990,35 +1075,40 @@ function MaterialExtra() {
         className="bg-dark text-white"
         style={{ zIndex: 1050 }}
       >
-        <Button
-          variant="secondary"
-          onClick={handleClose}
-          className="position-absolute top-0 end-0 m-3"
-          style={{
-            zIndex: 1060,
-            borderRadius: "50%",
-            width: "40px",
-            height: "40px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          ✕
-        </Button>
-        <iframe
-          src={`https://docs.google.com/gview?url=${pdfUrl}&embedded=true`}
-          width="100%"
-          height="100%"
-          frameBorder="0"
-          title="PDF Viewer"
-          style={{
-            border: "none",
-            width: "100vw",
-            height: "100vh",
-            pointerEvents: "none",
-          }}
-        />
+        <Modal.Header className="bg-dark border-0 d-flex justify-content-end p-2">
+          <Button
+            variant="light"
+            onClick={handleClose}
+            className="btn-close-white"
+            style={{
+              borderRadius: "50%",
+              width: "40px",
+              height: "40px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "2px solid #fff",
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              color: "white",
+            }}
+          >
+            ✕
+          </Button>
+        </Modal.Header>
+        <Modal.Body className="p-0" style={{ height: "calc(100vh - 60px)" }}>
+          <iframe
+            src={`https://docs.google.com/gview?url=${pdfUrl}&embedded=true`}
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            title="PDF Viewer"
+            style={{
+              border: "none",
+              width: "100%",
+              height: "100%",
+            }}
+          />
+        </Modal.Body>
       </Modal>
 
       <ModalVideo
@@ -1028,7 +1118,6 @@ function MaterialExtra() {
         videoId={videoId}
         onClose={() => setOpen(false)}
       />
-
     </Container>
   );
 }
