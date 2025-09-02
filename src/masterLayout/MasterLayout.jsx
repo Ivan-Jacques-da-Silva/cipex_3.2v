@@ -7,6 +7,7 @@ import logoPreo from './../img/logoPreto.png';
 import logoBranco from './../img/logo.png'
 import logoBrancoFavicon from './../img/FaviconPreto.png'
 import logoPretoFavicon from './../img/FaviconBranco.png'
+import { clearBirthdayFireworksSession } from '../components/child/BirthdayFireworks';
 
 const MasterLayout = ({ children }) => {
   let [sidebarActive, seSidebarActive] = useState(false);
@@ -125,6 +126,9 @@ const MasterLayout = ({ children }) => {
     localStorage.removeItem('userProfilePhoto');
     localStorage.removeItem('schoolId');
     localStorage.removeItem('turmaID');
+
+    // Limpar a sessão dos fogos de aniversário
+    clearBirthdayFireworksSession();
 
     // Redirecionar para a página inicial ("/")
     console.log("Chegou no sair")

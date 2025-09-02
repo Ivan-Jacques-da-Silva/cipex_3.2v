@@ -2616,6 +2616,22 @@ app.get('/atualizar-nomes', (req, res) => {
   });
 });
 
+// Rota para buscar aniversário de um usuário específico
+app.get('/aniversario/:userId', (req, res) => {
+  const userId = req.params.userId;
+  
+  db.query('SELECT cp_datanascimento FROM cp_usuarios WHERE cp_id = ? AND cp_excluido = 0', [userId], (err, result) => {
+    if (err) {
+      console.error('Erro ao buscar aniversário do usuário:', err);
+      res.status(500).send({ msg: 'Erro no servidor' });
+    } else if (result.length === 0) {
+      res.status(404).send({ msg: 'Usuário não encontrado' });
+    } else {
+      res.send(result[0]); // Retorna { cp_datanascimento: "YYYY-MM-DD" }
+    }
+  });
+});
+
 // Rota para Agenda
 
 app.get('/aniversariantes', (req, res) => {
