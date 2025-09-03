@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import './childStyle.css';
 
 const menuItems = [
-    { texto: "Financeiro", icone: "solar:wallet-bold", classe: "bg-success-main", to: "/financeiro", permissoes: [1, 2, 3] },
+    { texto: "Financeiro", icone: "solar:wallet-bold", classe: "bg-success-main", to: "/financeiro", permissoes: [1, 2, 3, 5] },
     { texto: "Cadastro de Escola", icone: "fa-solid:school", classe: "bg-purple", to: "/cadastro-escola", permissoes: [1] },
     { texto: "Cadastro de Usuário", icone: "fluent:people-20-filled", classe: "bg-info", to: "/cadastro-usuario", permissoes: [1, 2, 3] },
     { texto: "Matrícula", icone: "fa6-solid:chalkboard-user", classe: "bg-yellow", to: "/cadastro-matricula", permissoes: [1, 2, 3] },

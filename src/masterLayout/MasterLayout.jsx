@@ -299,7 +299,7 @@ const MasterLayout = ({ children }) => {
                 </li>
               </ul>
             </li>
-            {temPermissao("gestao") && (
+            {(temPermissao("gestao") || temPermissao("aluno")) && (
               <li>
                 <NavLink to="/financeiro" className={(navData) =>
                   navData.isActive ? "active-page" : ""
