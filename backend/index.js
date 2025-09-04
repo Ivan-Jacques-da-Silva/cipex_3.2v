@@ -364,12 +364,12 @@ app.put('/update-profile/:userId', (req, res) => {
       res.status(500).json({ error: 'Erro ao atualizar perfil' });
       return;
     }
-    
+
     if (result.affectedRows === 0) {
       res.status(404).json({ error: 'Usuário não encontrado' });
       return;
     }
-    
+
     res.status(200).json({ message: 'Perfil atualizado com sucesso' });
   });
 });
@@ -2562,7 +2562,9 @@ app.get('/financeira/:id', (req, res) => {
 
 // nova rota para unir parcelas + matrícula
 app.get('/financeiroParcelas', (req, res) => {
-  const query = `
+  const { schoolId, userId } = req.query;
+  
+  let query = `
     SELECT
       mp.cp_mtPar_id,
       mp.cp_mt_id,
@@ -2571,12 +2573,32 @@ app.get('/financeiroParcelas', (req, res) => {
       mp.cp_mtPar_valorParcela,
       m.cp_mt_escola,
       m.cp_mt_nome_usuario,
-      m.cp_status_matricula
+      m.cp_status_matricula,
+      m.cp_mt_tipo_pagamento,
+      m.cp_mt_valor_mensalidade,
+      m.cp_mt_quantas_parcelas,
+      m.cp_mt_valor_curso,
+      m.cp_mt_usuario
     FROM cp_matriculaParcelas mp
     JOIN cp_matriculas m ON mp.cp_mt_id = m.cp_mt_id
+    WHERE 1=1
   `;
+  
+  const params = [];
+  
+  // Se for um usuário específico (aluno), filtrar apenas suas matrículas com tipo parcelado
+  if (userId) {
+    query += ` AND m.cp_mt_usuario = ? AND m.cp_mt_tipo_pagamento = 'parcelado'`;
+    params.push(userId);
+  }
+  
+  // Se for filtro por escola
+  if (schoolId) {
+    query += ` AND m.cp_mt_escola = ?`;
+    params.push(schoolId);
+  }
 
-  db.query(query, (err, rows) => {
+  db.query(query, params, (err, rows) => {
     if (err) {
       console.error('Erro ao selecionar financeiroParcelas:', err);
       return res.status(500).json({ error: 'Erro ao selecionar financeiroParcelas' });
@@ -2652,7 +2674,7 @@ app.get('/atualizar-nomes', (req, res) => {
 // Rota para buscar aniversário de um usuário específico
 app.get('/aniversario/:userId', (req, res) => {
   const userId = req.params.userId;
-  
+
   db.query('SELECT cp_datanascimento FROM cp_usuarios WHERE cp_id = ? AND cp_excluido = 0', [userId], (err, result) => {
     if (err) {
       console.error('Erro ao buscar aniversário do usuário:', err);
@@ -2924,14 +2946,14 @@ app.get('/cursos-migracao', (req, res) => {
 // Criar nova nota
 app.post('/notas', (req, res) => {
   const { turmaId, alunoId, data, notaWorkbook, notaProva } = req.body;
-  
+
   const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
-  
+
   const query = `
     INSERT INTO cp_notas (cp_nota_turma_id, cp_nota_aluno_id, cp_nota_data, cp_nota_workbook, cp_nota_prova, cp_nota_media)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
-  
+
   db.query(query, [turmaId, alunoId, data, notaWorkbook, notaProva, media], (err, result) => {
     if (err) {
       console.error('Erro ao salvar nota:', err);
@@ -2948,7 +2970,7 @@ app.post('/notas', (req, res) => {
 // Buscar notas de uma turma
 app.get('/notas/turma/:turmaId', (req, res) => {
   const turmaId = req.params.turmaId;
-  
+
   const query = `
     SELECT n.*, u.cp_nome AS cp_nome_aluno
     FROM cp_notas n
@@ -2956,7 +2978,7 @@ app.get('/notas/turma/:turmaId', (req, res) => {
     WHERE n.cp_nota_turma_id = ?
     ORDER BY n.cp_nota_data DESC
   `;
-  
+
   db.query(query, [turmaId], (err, result) => {
     if (err) {
       console.error('Erro ao buscar notas:', err);
@@ -2971,15 +2993,15 @@ app.get('/notas/turma/:turmaId', (req, res) => {
 app.put('/notas/:notaId', (req, res) => {
   const notaId = req.params.notaId;
   const { notaWorkbook, notaProva } = req.body;
-  
+
   const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
-  
+
   const query = `
     UPDATE cp_notas 
     SET cp_nota_workbook = ?, cp_nota_prova = ?, cp_nota_media = ?
     WHERE cp_nota_id = ?
   `;
-  
+
   db.query(query, [notaWorkbook, notaProva, media, notaId], (err, result) => {
     if (err) {
       console.error('Erro ao atualizar nota:', err);
@@ -2993,9 +3015,9 @@ app.put('/notas/:notaId', (req, res) => {
 // Deletar nota
 app.delete('/notas/:notaId', (req, res) => {
   const notaId = req.params.notaId;
-  
+
   const query = 'DELETE FROM cp_notas WHERE cp_nota_id = ?';
-  
+
   db.query(query, [notaId], (err, result) => {
     if (err) {
       console.error('Erro ao deletar nota:', err);

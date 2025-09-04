@@ -159,10 +159,12 @@ const Financeiro = () => {
             const filtradas = parcelas
                 .filter(item => item.cp_status_matricula === 'ativo')
                 .filter(item => {
-                    if (userTypeStorage === 4) return false;
-                    if (userTypeStorage === 5) return item.cp_mt_nome_usuario === userName && item.cp_mt_escola === schoolIdStorage;
-                    if (![1, 5].includes(userTypeStorage)) return item.cp_mt_escola === schoolIdStorage;
-                    return true;
+                    if (userTypeStorage === 4) return false; // Professor não tem acesso
+                    if (userTypeStorage === 5) return item.cp_mt_nome_usuario === userName && item.cp_mt_escola === schoolIdStorage; // Aluno vê apenas suas parcelas
+                    if (userTypeStorage === 2) return item.cp_mt_escola === schoolIdStorage; // Diretor vê apenas alunos da sua escola
+                    if (userTypeStorage === 3) return item.cp_mt_escola === schoolIdStorage; // Secretária vê apenas alunos da sua escola
+                    if (userTypeStorage === 1) return true; // Diretor Geral vê tudo
+                    return false; // Qualquer outro tipo não tem acesso
                 });
 
             const dadosFormatados = filtradas.map(item => ({
@@ -170,24 +172,36 @@ const Financeiro = () => {
                 nome: item.cp_mt_nome_usuario,
                 cp_mtPar_status: verificarStatus(item.cp_mtPar_status, item.cp_mtPar_dataParcela),
                 cp_mtPar_dataParcela: formatarData(item.cp_mtPar_dataParcela),
+                tipoPagamento: item.cp_mt_tipo_pagamento
             }));
 
             setDados(dadosFormatados);
 
-            // cálculo de totalAtrasado e valorMensal permanece igual
+            // Calcular total atrasado
             const atrasado = dadosFormatados
                 .filter(d => d.cp_mtPar_status === 'Vencido')
                 .reduce((acc, curr) => acc + parseFloat(curr.cp_mtPar_valorParcela), 0);
             setTotalAtrasado(atrasado.toFixed(2));
 
+            // Calcular valor mensal (apenas mensalidades do mês atual)
+            const hoje = new Date();
+            const mesAtual = hoje.getMonth();
+            const anoAtual = hoje.getFullYear();
+
             const idsUnicos = new Set();
-            const mensal = dadosFormatados.reduce((soma, p) => {
-                if (!idsUnicos.has(p.cp_mt_id)) {
-                    idsUnicos.add(p.cp_mt_id);
-                    return soma + parseFloat(p.cp_mtPar_valorParcela);
-                }
-                return soma;
-            }, 0);
+            const mensal = dadosFormatados
+                .filter(item => {
+                    const dataVencimento = new Date(item.cp_mtPar_dataParcela);
+                    return dataVencimento.getMonth() === mesAtual && 
+                           dataVencimento.getFullYear() === anoAtual;
+                })
+                .reduce((soma, p) => {
+                    if (!idsUnicos.has(p.cp_mt_id)) {
+                        idsUnicos.add(p.cp_mt_id);
+                        return soma + parseFloat(p.cp_mtPar_valorParcela);
+                    }
+                    return soma;
+                }, 0);
             setValorMensal(mensal.toFixed(2));
 
         } catch (error) {
@@ -199,11 +213,42 @@ const Financeiro = () => {
 
     const filteredData = dados.filter((item) => {
         const matchesNome = item.nome?.toLowerCase().includes(nomeFiltro.toLowerCase()) ?? true;
-        const updatedStatus =
-            item.cp_mtPar_status === "à vencer" && new Date(item.cp_mtPar_dataParcela) < new Date()
-                ? "Vencido"
-                : item.cp_mtPar_status;
-        const matchesStatus = !statusFiltro || updatedStatus === statusFiltro;
+        
+        // Calcular o status real baseado na data (mesma lógica da tabela)
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        
+        const [dia, mes, ano] = item.cp_mtPar_dataParcela.split('/').map(Number);
+        const dataVencimento = new Date(ano, mes - 1, dia);
+        
+        const mesAtual = hoje.getMonth();
+        const anoAtual = hoje.getFullYear();
+        const mesVencimento = dataVencimento.getMonth();
+        const anoVencimento = dataVencimento.getFullYear();
+        
+        let statusAtual = item.cp_mtPar_status;
+        
+        if (item.cp_mtPar_status !== "Pago") {
+            if (anoVencimento > anoAtual || (anoVencimento === anoAtual && mesVencimento > mesAtual)) {
+                statusAtual = "Futuras parcelas";
+            } else if (anoVencimento === anoAtual && mesVencimento === mesAtual) {
+                if (dataVencimento < hoje) {
+                    statusAtual = "Vencido";
+                } else {
+                    statusAtual = "À vencer";
+                }
+            } else {
+                statusAtual = "Vencido";
+            }
+        }
+        
+        const matchesStatus = !statusFiltro || statusAtual === statusFiltro;
+
+        // Para alunos (userType 5), só mostrar se for tipo parcelado
+        if (userType === 5 && item.cp_mt_tipo_pagamento !== 'parcelado') {
+            return false;
+        }
+
         return matchesNome && matchesStatus;
     });
 
@@ -226,32 +271,16 @@ const Financeiro = () => {
             <div className="row mb-4 g-3">
                 <div className="col-12">
                     <div className="card border-0 shadow-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                        <div className="card-body p-4 text-white">
+                        <div className="card-body p-4">
                             <div className="row align-items-center">
                                 <div className="col-12 col-lg-8 mb-3 mb-lg-0">
                                     <h3 className="mb-2 fw-bold">
-                                        <Icon icon="solar:wallet-money-bold" className="me-2" width="32" height="32" />
+                                        <Icon icon="solar:wallet-money-bold" className="m-3 " width="32" height="32" />
                                         Gestão Financeira
                                     </h3>
-                                    <p className="mb-0 opacity-90">
+                                    <p className="mb-0">
                                         {userType === 5 ? 'Acompanhe sua situação financeira' : 'Controle completo das finanças da instituição'}
                                     </p>
-                                </div>
-                                <div className="col-12 col-lg-4">
-                                    <div className="row g-2">
-                                        <div className="col-6">
-                                            <div className="text-center">
-                                                <div className="fs-4 fw-bold">R$ {valorMensal}</div>
-                                                <small className="opacity-90">Mensal</small>
-                                            </div>
-                                        </div>
-                                        <div className="col-6">
-                                            <div className="text-center">
-                                                <div className="fs-4 fw-bold text-warning">R$ {totalAtrasado}</div>
-                                                <small className="opacity-90">Em Atraso</small>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -261,20 +290,27 @@ const Financeiro = () => {
 
             {/* Cards de estatísticas */}
             <div className="row mb-4 g-3">
-                <div className={`col-12 ${userType === 5 ? 'col-md-4' : 'col-md-6 col-xl-3'}`}>
+                <div className={`col-12 ${userType === 5 ? 'col-md-6' : 'col-md-6 col-xl-3'}`}>
                     <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)' }}>
-                        <div className="card-body p-4 text-white text-center">
+                        <div className="card-body p-4 text-center">
                             <div className="mb-3">
                                 <Icon icon="solar:money-bag-bold" width="48" height="48" className="opacity-90" />
                             </div>
-                            <h4 className="fw-bold mb-1">R$ {valorMensal}</h4>
-                            <p className="mb-0 small opacity-90">Receita Mensal Total</p>
+                            <h4 className="fw-bold mb-1">
+                                R$ {userType === 5 && filteredData.length > 0 
+                                    ? (filteredData[0].cp_mtPar_valorParcela || '0.00')
+                                    : (valorMensal || '0.00')
+                                }
+                            </h4>
+                            <p className="mb-0 small opacity-90">
+                                {userType === 5 ? 'Valor da Sua Parcela' : 'Receita do Mês Atual'}
+                            </p>
                         </div>
                     </div>
                 </div>
-                <div className={`col-12 ${userType === 5 ? 'col-md-4' : 'col-md-6 col-xl-3'}`}>
+                <div className={`col-12 ${userType === 5 ? 'col-md-6' : 'col-md-6 col-xl-3'}`}>
                     <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)' }}>
-                        <div className="card-body p-4 text-white text-center">
+                        <div className="card-body p-4 text-center">
                             <div className="mb-3">
                                 <Icon icon="solar:clock-circle-bold" width="48" height="48" className="opacity-90" />
                             </div>
@@ -283,29 +319,60 @@ const Financeiro = () => {
                         </div>
                     </div>
                 </div>
-                <div className={`col-12 ${userType === 5 ? 'col-md-4' : 'col-md-6 col-xl-3'}`}>
-                    <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #55efc4 0%, #00b894 100%)' }}>
-                        <div className="card-body p-4 text-white text-center">
-                            <div className="mb-3">
-                                <Icon icon="solar:check-circle-bold" width="48" height="48" className="opacity-90" />
-                            </div>
-                            <h4 className="fw-bold mb-1">{filteredData.filter(item => item.cp_mtPar_status === 'Pago').length}</h4>
-                            <p className="mb-0 small opacity-90">Pagamentos em Dia</p>
-                        </div>
-                    </div>
-                </div>
-                {userType !== 5 && (
-                    <div className="col-12 col-md-6 col-xl-3">
-                        <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fdcb6e 0%, #e17055 100%)' }}>
-                            <div className="card-body p-4 text-white text-center">
-                                <div className="mb-3">
-                                    <Icon icon="solar:users-group-two-rounded-bold" width="48" height="48" className="opacity-90" />
+                {userType === 5 ? (
+                    <>
+                        <div className="col-12 col-md-6">
+                            <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)' }}>
+                                <div className="card-body p-4 text-center">
+                                    <div className="mb-3">
+                                        <Icon icon="solar:chart-bold" width="48" height="48" className="opacity-90" />
+                                    </div>
+                                    <h4 className="fw-bold mb-1">{filteredData.length}</h4>
+                                    <p className="mb-0 small opacity-90">Minhas Parcelas</p>
                                 </div>
-                                <h4 className="fw-bold mb-1">{new Set(filteredData.map(item => item.cp_mt_id)).size}</h4>
-                                <p className="mb-0 small opacity-90">Total de Alunos</p>
                             </div>
                         </div>
-                    </div>
+                        <div className="col-12 col-md-6">
+                            <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #55a3ff 0%, #003d82 100%)' }}>
+                                <div className="card-body p-4 text-center">
+                                    <div className="mb-3">
+                                        <Icon icon="solar:medal-ribbons-star-bold" width="48" height="48" className="opacity-90" />
+                                    </div>
+                                    <h4 className="fw-bold mb-1">{filteredData.filter(item => item.cp_mtPar_status === 'Pago').length}</h4>
+                                    <p className="mb-0 small opacity-90">Parcelas Pagas</p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="col-12 col-md-6 col-xl-3">
+                            <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)' }}>
+                                <div className="card-body p-4 text-center">
+                                    <div className="mb-3">
+                                        <Icon icon="solar:calendar-bold" width="48" height="48" className="opacity-90" />
+                                    </div>
+                                    <h4 className="fw-bold mb-1">
+                                        {new Set(filteredData.filter(item => item.tipoPagamento === 'mensalidade').map(item => item.cp_mt_id)).size}
+                                    </h4>
+                                    <p className="mb-0 small opacity-90">Usuários c/ Mensalidade</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-12 col-md-6 col-xl-3">
+                            <div className="card border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%)' }}>
+                                <div className="card-body p-4 text-center">
+                                    <div className="mb-3">
+                                        <Icon icon="solar:chart-bold" width="48" height="48" className="opacity-90" />
+                                    </div>
+                                    <h4 className="fw-bold mb-1">
+                                        {new Set(filteredData.filter(item => item.tipoPagamento === 'parcelado').map(item => item.cp_mt_id)).size}
+                                    </h4>
+                                    <p className="mb-0 small opacity-90">Usuários c/ Parcelamento</p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
 
@@ -330,7 +397,7 @@ const Financeiro = () => {
                                         <option value={15}>15</option>
                                         <option value={20}>20</option>
                                     </select>
-                                    <span className="text-md text-secondary">registros</span>
+                                    <span className="text-md">registros</span>
                                 </div>
 
                                 {/* Busca por nome para administrativos */}
@@ -357,7 +424,7 @@ const Financeiro = () => {
                                 {userType === 5 && (
                                     <div className="badge bg-gradient" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                                         <Icon icon="solar:user-bold" width="16" height="16" className="me-1" />
-                                        Minha Situação Financeira
+                                        {filteredData.length > 0 ? 'Minhas Parcelas' : 'Sem Parcelas Disponíveis'}
                                     </div>
                                 )}
 
@@ -372,8 +439,9 @@ const Financeiro = () => {
                                     >
                                         <option value="">Todos os Status</option>
                                         <option value="Pago">✅ Pago</option>
-                                        <option value="à vencer">⏳ À vencer</option>
+                                        <option value="À vencer">⏳ À vencer</option>
                                         <option value="Vencido">❌ Vencido</option>
+                                        <option value="Futuras parcelas">📅 Futuras parcelas</option>
                                     </select>
                                 </div>
                             </div>
@@ -426,14 +494,48 @@ const Financeiro = () => {
                                         <td colSpan={[1, 2, 3].includes(userType) ? "5" : "4"} className="text-center py-5">
                                             <div className="text-muted">
                                                 <Icon icon="solar:inbox-out-bold" width="48" height="48" className="mb-2 opacity-50" />
-                                                <div>Nenhum registro encontrado</div>
+                                                <div>
+                                                    {userType === 5
+                                                        ? "Você possui mensalidade fixa. Entre em contato com a secretaria para mais informações."
+                                                        : "Nenhum registro encontrado"
+                                                    }
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : (
                                     currentItems.map((item, index) => {
-                                        const isVencido = item.cp_mtPar_status === "à vencer" && new Date(item.cp_mtPar_dataParcela) < new Date();
-                                        const statusAtual = isVencido ? "Vencido" : item.cp_mtPar_status;
+                                        const hoje = new Date();
+                                        hoje.setHours(0, 0, 0, 0); // Zerar horas para comparação apenas de data
+                                        
+                                        // Converter a data da parcela (formato DD/MM/AAAA) para objeto Date
+                                        const [dia, mes, ano] = item.cp_mtPar_dataParcela.split('/').map(Number);
+                                        const dataVencimento = new Date(ano, mes - 1, dia); // mes - 1 porque Date usa 0-11 para meses
+                                        
+                                        const mesAtual = hoje.getMonth();
+                                        const anoAtual = hoje.getFullYear();
+                                        const mesVencimento = dataVencimento.getMonth();
+                                        const anoVencimento = dataVencimento.getFullYear();
+                                        
+                                        let statusAtual = item.cp_mtPar_status;
+                                        
+                                        // Se não está pago, verificar o status baseado na data
+                                        if (item.cp_mtPar_status !== "Pago") {
+                                            if (anoVencimento > anoAtual || (anoVencimento === anoAtual && mesVencimento > mesAtual)) {
+                                                // Mês futuro
+                                                statusAtual = "Futuras parcelas";
+                                            } else if (anoVencimento === anoAtual && mesVencimento === mesAtual) {
+                                                // Mesmo mês
+                                                if (dataVencimento < hoje) {
+                                                    statusAtual = "Vencido";
+                                                } else {
+                                                    statusAtual = "À vencer";
+                                                }
+                                            } else {
+                                                // Mês anterior (já passou)
+                                                statusAtual = "Vencido";
+                                            }
+                                        }
 
                                         return (
                                             <tr key={item.cp_mtPar_id || index} className="border-bottom">
@@ -448,16 +550,23 @@ const Financeiro = () => {
                                                 <td className="py-3">
                                                     <div className="d-flex align-items-center gap-2">
                                                         <span
-                                                            className={`badge fw-semibold px-3 py-2 ${statusAtual === "Pago"
+                                                            className={`badge fw-semibold px-3 py-2 ${
+                                                                statusAtual === "Pago"
                                                                     ? "bg-success text-white"
                                                                     : statusAtual === "Vencido"
                                                                         ? "bg-danger text-white"
-                                                                        : "bg-warning "
-                                                                }`}
+                                                                        : statusAtual === "À vencer"
+                                                                            ? "bg-warning text-dark"
+                                                                            : statusAtual === "Futuras parcelas"
+                                                                                ? "bg-secondary text-white"
+                                                                                : "bg-warning text-dark"
+                                                            }`}
                                                             style={{ borderRadius: '8px' }}
                                                         >
                                                             {statusAtual === "Pago" && "✅"}
                                                             {statusAtual === "Vencido" && "❌"}
+                                                            {statusAtual === "À vencer" && "⏳"}
+                                                            {statusAtual === "Futuras parcelas" && "📅"}
                                                             {statusAtual === "à vencer" && "⏳"}
                                                             {" " + statusAtual}
                                                         </span>
@@ -506,7 +615,7 @@ const Financeiro = () => {
                     <div className="card-footer border-0 py-3 px-4">
                         <div className="row align-items-center">
                             <div className="col-12 col-md-6 mb-2 mb-md-0">
-                                <div className="d-flex align-items-center gap-2 text-muted">
+                                <div className="d-flex align-items-center gap-2 ">
                                     <Icon icon="solar:info-circle-bold" width="16" height="16" />
                                     <span className="small">
                                         Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filteredData.length)} de {filteredData.length} registros
