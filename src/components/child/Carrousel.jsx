@@ -1,11 +1,24 @@
 import { Icon } from '@iconify/react/dist/iconify.js';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 // import frase from './../../../public/assets/images/welcome PORTAL.png';
 import frase from './../../img/banner1.png';
 // import frase from './../../img/welcome PORTAL.png';
+import fraseMobile from './../../img/banner1Celular.png'; // Adicione aqui o caminho para sua imagem mobile
 
 
 const Carrousel = () => {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkIfMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+
+        checkIfMobile();
+        window.addEventListener('resize', checkIfMobile);
+
+        return () => window.removeEventListener('resize', checkIfMobile);
+    }, []);
     return (
         <div className="col-xxl-12 col-xl-12">
             <div className="card">
@@ -16,7 +29,7 @@ const Carrousel = () => {
                     </div> */}
                     {/* <div className="d-flex flex-wrap align-items-center mt-8 justify-content-center"> */}
                         {/* <img md={12} style={{ margin: "20px", width: "90%" }}  className="" /> */}
-                        <img src={frase} style={{width:"100vw", borderRadius: "7px",}} alt="ImagemInicio"
+                        <img src={isMobile ? fraseMobile : frase} style={{width:"100vw", borderRadius: "7px",}} alt="ImagemInicio"
                             className=""
                         />
                     {/* </div> */}
