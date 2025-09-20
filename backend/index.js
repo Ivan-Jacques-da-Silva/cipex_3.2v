@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-const mysql = require('mysql');
+const { PrismaClient } = require('@prisma/client');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
@@ -8,6 +8,8 @@ const multer = require('multer');
 const fs = require('fs');
 const util = require('util');
 
+// Inicializar o Prisma Client
+const prisma = new PrismaClient();
 
 // Lista de origens permitidas
 const allowedOrigins = [
@@ -40,8 +42,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-//app.use(cors()); 
-
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -51,74 +51,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configuração da conexão com o banco de dados
-
-// const db = mysql.createConnection({
-//   host: 'localhost',
-//   user: 'ivanjacques_portal',
-//   password: 'hTWTV00k4OWc',
-//   database: 'ivanjacques_cipex' // Nome do banco de   dados
-//});
-
-//const db = mysql.createConnection({
-// host: 'localhost',
-//  user: 'root',
-//  password: 'admin',
-//  database: 'c1p3x' // Nome do banco de   dados
-//});
-
-// Conectar ao banco de dados
-// db.connect((err) => {
-//   if (err) {
-//     console.error('Erro ao conectar ao banco de dados:', err);
-//     throw err;
-//   }
-//   console.log('Conexão ao banco de dados MySQL estabelecida');
-// });
-
-// Configuração da conexão com o banco de dados
-let db;
-
-function handleDisconnect() {
-  db = mysql.createConnection({
-    host: 'localhost',
-    user: 'ivanjacques_portal',
-    password: 'hTWTV00k4OWc',
-    database: 'ivanjacques_cipex'
-  });
-
-  // Conectar ao banco de dados
-  db.connect((err) => {
-    if (err) {
-      console.error('Erro ao conectar ao banco de dados:', err);
-      setTimeout(handleDisconnect, 2000); // Tenta reconectar após 2 segundos
-    } else {
-      console.log('Conexão ao banco de dados MySQL estabelecida');
-    }
-  });
-
-  db.on('error', (err) => {
-    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      console.error('Conexão com o banco de dados foi perdida:', err);
-      handleDisconnect(); // Reconecta automaticamente
-    } else {
-    //   throw err; // Se for outro erro, joga a exceção
-    console.error('Erro inesperado na conexão com o banco:', err);
-    logError(err);
-    handleDisconnect(); // opcional: tenta reconectar mesmo com erro diferente
-
-    }
-  });
-}
-
-// Inicializa a conexão
-handleDisconnect();
-
-
 // Função de log para gravar erros em um arquivo de log
 const logError = (error) => {
-  const logFilePath = 'error.log'; // Caminho para o arquivo de log
-  const errorMessage = `${new Date().toISOString()} - ${error.stack}\n`; // Formato da mensagem de erro
+  const logFilePath = 'error.log';
+  const errorMessage = `${new Date().toISOString()} - ${error.stack}\n`;
   fs.appendFile(logFilePath, errorMessage, (err) => {
     if (err) {
       console.error('Erro ao gravar no arquivo de log:', err);
@@ -126,101 +62,127 @@ const logError = (error) => {
   });
 };
 
-
 // Rota para login
-app.post('/login', (req, res) => {
-  const login = req.body.login;
-  const password = req.body.password;
+app.post('/login', async (req, res) => {
+  const { login, password } = req.body;
 
-  // Consulta SQL para verificar o login e obter o tipo de usuário, nome, ID e o endereço da foto do perfil
-  db.query('SELECT cp_id, cp_tipo_user, cp_nome, cp_foto_perfil, cp_escola_id, cp_turma_id FROM cp_usuarios WHERE cp_login = ? AND cp_password = ?', [login, password], (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else if (result.length > 0) {
+  try {
+    const user = await prisma.cp_usuarios.findFirst({
+      where: {
+        cp_login: login,
+        cp_password: password
+      },
+      select: {
+        cp_id: true,
+        cp_tipo_user: true,
+        cp_nome: true,
+        cp_foto_perfil: true,
+        cp_escola_id: true,
+        cp_turma_id: true
+      }
+    });
+
+    if (user) {
       res.send({
         msg: 'Usuário Logado com sucesso',
-        userId: result[0].cp_id, // Inclui o ID do usuário na resposta
-        userType: result[0].cp_tipo_user,
-        userName: result[0].cp_nome,
-        userProfilePhoto: result[0].cp_foto_perfil,
-        schoolId: result[0].cp_escola_id,
-        turmaID: result[0].cp_turma_id
+        userId: user.cp_id,
+        userType: user.cp_tipo_user,
+        userName: user.cp_nome,
+        userProfilePhoto: user.cp_foto_perfil,
+        schoolId: user.cp_escola_id,
+        turmaID: user.cp_turma_id
       });
     } else {
       res.send({ msg: 'Usuário ou senha incorretos' });
     }
-  });
+  } catch (err) {
+    console.error('Erro no login:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
 });
 
-app.delete('/delete-user/:userId', (req, res) => {
-  const userId = req.params.userId;
-  db.query('DELETE FROM cp_usuarios WHERE cp_id = ?', userId, (err, result) => {
-    if (err) {
-      console.error('Erro ao deletar usuário:', err);
+// Deletar usuário
+app.delete('/delete-user/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
+
+  try {
+    const deletedUser = await prisma.cp_usuarios.delete({
+      where: { cp_id: userId }
+    });
+
+    res.json({ message: 'Usuário deletado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar usuário:', err);
+    if (err.code === 'P2025') {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+    } else {
       res.status(500).json({ error: 'Erro ao deletar usuário', details: err.message });
-    } else {
-      if (result.affectedRows > 0) {
-        res.json({ message: 'Usuário deletado com sucesso' });
-      } else {
-        res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+  }
+});
+
+// Listar todos os usuários
+app.get('/users', async (req, res) => {
+  try {
+    const users = await prisma.cp_usuarios.findMany({
+      select: {
+        cp_id: true,
+        cp_nome: true,
+        cp_email: true,
+        cp_datanascimento: true,
+        cp_tipo_user: true,
+        cp_excluido: true,
+        cp_escola_id: true
       }
-    }
-  });
+    });
+
+    res.send(users);
+  } catch (err) {
+    console.error('Erro ao buscar usuários:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
 });
 
-
-
-app.get('/users', (req, res) => {
-  db.query('SELECT cp_id, cp_nome, cp_email, cp_datanascimento, cp_tipo_user, cp_excluido, cp_escola_id FROM cp_usuarios', (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result); // Envia os dados dos usuários como resposta
-    }
-  });
-});
-
-
-//configuração para salvar foto do perfil
+// Configuração para salvar foto do perfil
 const storageProfilePhoto = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Define o caminho base para armazenar as fotos de perfil
     cb(null, 'FotoPerfil');
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-    // Salva os arquivos com nome único na pasta definida anteriormente
     cb(null, uniqueSuffix);
   }
 });
 
 const profilePhotoUpload = multer({ storage: storageProfilePhoto });
 
-// Rota para lidar com o upload da foto de perfil e atualização no banco de dados
-app.post('/uploadProfilePhoto', profilePhotoUpload.single('cp_foto_perfil'), (req, res) => {
+// Upload da foto de perfil
+app.post('/uploadProfilePhoto', profilePhotoUpload.single('cp_foto_perfil'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhuma foto de perfil enviada' });
   }
 
   const filePath = `/FotoPerfil/${req.file.filename}`;
-  const userId = req.body.userId;
+  const userId = parseInt(req.body.userId);
 
-  db.query(
-    'UPDATE cp_usuarios SET cp_foto_perfil = ? WHERE cp_id = ?',
-    [filePath, userId],
-    (err, result) => {
-      if (err) {
-        console.error('Erro ao atualizar a foto de perfil:', err);
-        return res.status(500).json({ error: 'Erro ao atualizar a foto de perfil' });
-      }
+  try {
+    await prisma.cp_usuarios.update({
+      where: { cp_id: userId },
+      data: { cp_foto_perfil: filePath }
+    });
 
-      res.json({ success: true, filePath });
-    }
-  );
+    res.json({ success: true, filePath });
+  } catch (err) {
+    console.error('Erro ao atualizar a foto de perfil:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao atualizar a foto de perfil' });
+  }
 });
 
-// Rota para o cadastro de usuários com associação à escola
-app.post('/register', profilePhotoUpload.single('cp_foto_perfil'), (req, res) => {
+// Cadastro de usuários
+app.post('/register', profilePhotoUpload.single('cp_foto_perfil'), async (req, res) => {
   const {
     cp_nome,
     cp_email,
@@ -249,736 +211,700 @@ app.post('/register', profilePhotoUpload.single('cp_foto_perfil'), (req, res) =>
 
   console.log('Inserindo novo usuário...');
 
-  const newUser = {
-    cp_nome,
-    cp_email,
-    cp_login,
-    cp_password,
-    cp_tipo_user,
-    cp_rg: cp_rg || null,
-    cp_cpf,
-    cp_datanascimento,
-    cp_estadocivil: cp_estadocivil || null,
-    cp_cnpj: cp_cnpj || null,
-    cp_ie: cp_ie || null,
-    cp_whatsapp: cp_whatsapp || null,
-    cp_telefone: cp_telefone || null,
-    cp_empresaatuacao: cp_empresaatuacao || null,
-    cp_profissao: cp_profissao || null,
-    cp_end_cidade_estado: cp_end_cidade_estado || null,
-    cp_end_rua: cp_end_rua || null,
-    cp_end_num: cp_end_num || null,
-    cp_end_cep: cp_end_cep || null,
-    cp_descricao: cp_descricao || null,
-    cp_escola_id: cp_escola_id || null,
-    cp_foto_perfil: filePath
-  };
-
-  db.query('INSERT INTO cp_usuarios SET ?', newUser, (err, result) => {
-    if (err) {
-      console.error('Erro ao registrar novo usuário:', err);
-      logError(err);
-
-      if (req.file) {
-        fs.unlink(req.file.path, (unlinkErr) => {
-          if (unlinkErr) {
-            console.error('Erro ao excluir imagem:', unlinkErr);
-            logError(unlinkErr);
-          }
-          console.log('Imagem excluída devido a erro no registro do usuário');
-        });
+  try {
+    const newUser = await prisma.cp_usuarios.create({
+      data: {
+        cp_nome,
+        cp_email,
+        cp_login,
+        cp_password,
+        cp_tipo_user: parseInt(cp_tipo_user),
+        cp_rg: cp_rg || null,
+        cp_cpf,
+        cp_datanascimento: new Date(cp_datanascimento),
+        cp_estadocivil: cp_estadocivil || null,
+        cp_cnpj: cp_cnpj || null,
+        cp_ie: cp_ie || null,
+        cp_whatsapp: cp_whatsapp || null,
+        cp_telefone: cp_telefone || null,
+        cp_empresaatuacao: cp_empresaatuacao || null,
+        cp_profissao: cp_profissao || null,
+        cp_end_cidade_estado: cp_end_cidade_estado || null,
+        cp_end_rua: cp_end_rua || null,
+        cp_end_num: cp_end_num ? parseInt(cp_end_num) : null,
+        cp_end_cep: cp_end_cep || null,
+        cp_descricao: cp_descricao || null,
+        cp_escola_id: cp_escola_id ? parseInt(cp_escola_id) : null,
+        cp_foto_perfil: filePath
       }
+    });
 
-      return res.status(500).send({ msg: 'Erro ao registrar novo usuário' });
+    console.log('Usuário registrado com sucesso:', newUser);
+    res.send({ exists: false, msg: 'Usuário registrado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao registrar novo usuário:', err);
+    logError(err);
+
+    if (req.file) {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error('Erro ao excluir imagem:', unlinkErr);
+          logError(unlinkErr);
+        }
+        console.log('Imagem excluída devido a erro no registro do usuário');
+      });
     }
 
-    console.log('Usuário registrado com sucesso:', result);
-    res.send({ exists: false, msg: 'Usuário registrado com sucesso' });
-  });
+    res.status(500).send({ msg: 'Erro ao registrar novo usuário' });
+  }
 });
 
-
-
-// Rota para servir as fotos de perfil
+// Servir fotos de perfil
 app.use('/FotoPerfil', express.static(path.join(__dirname, 'FotoPerfil')));
 
+// Buscar usuário por ID
+app.get('/users/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
 
-// Rota para atualizar um usuário existente
+  try {
+    const user = await prisma.cp_usuarios.findUnique({
+      where: { cp_id: userId }
+    });
 
-const tipoUsuarioMap = {
-  'Gestor': 1,
-  'Diretor': 2,
-  'Secretária': 3,
-  'Professor': 4,
-  'Aluno': 5
-};
-
-app.get('/users/:userId', (req, res) => {
-  const userId = req.params.userId;
-  db.query('SELECT * FROM cp_usuarios WHERE cp_id = ?', userId, (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro ao buscar dados do usuário' });
-    } else if (result.length > 0) {
-      res.send(result[0]); // Envia os dados do usuário como resposta
+    if (user) {
+      res.send(user);
     } else {
       res.status(404).send({ msg: 'Usuário não encontrado' });
     }
-  });
+  } catch (err) {
+    console.error('Erro ao buscar usuário:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar dados do usuário' });
+  }
 });
 
-
-app.put('/edit-user/:userId', (req, res) => {
-  const userId = req.params.userId;
+// Editar usuário
+app.put('/edit-user/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
   const updatedUser = req.body;
 
-  db.query('UPDATE cp_usuarios SET ? WHERE cp_id = ?', [updatedUser, userId], (err, result) => {
-    if (err) {
-      console.error('Erro ao editar usuário:', err);
-      res.status(500).json({ error: 'Erro ao editar usuário' });
-      return;
+  try {
+    // Converter campos específicos se necessário
+    if (updatedUser.cp_tipo_user) {
+      updatedUser.cp_tipo_user = parseInt(updatedUser.cp_tipo_user);
     }
+    if (updatedUser.cp_escola_id) {
+      updatedUser.cp_escola_id = parseInt(updatedUser.cp_escola_id);
+    }
+    if (updatedUser.cp_end_num) {
+      updatedUser.cp_end_num = parseInt(updatedUser.cp_end_num);
+    }
+    if (updatedUser.cp_datanascimento) {
+      updatedUser.cp_datanascimento = new Date(updatedUser.cp_datanascimento);
+    }
+
+    await prisma.cp_usuarios.update({
+      where: { cp_id: userId },
+      data: updatedUser
+    });
+
     res.status(200).json({ message: 'Usuário editado com sucesso' });
-  });
+  } catch (err) {
+    console.error('Erro ao editar usuário:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao editar usuário' });
+  }
 });
 
-// Rota para atualizar perfil do usuário logado
-app.put('/update-profile/:userId', (req, res) => {
-  const userId = req.params.userId;
+// Atualizar perfil do usuário logado
+app.put('/update-profile/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
   const { cp_nome, cp_email, cp_login, cp_password } = req.body;
 
-  // Monta o objeto de atualização
   const updateData = {
     cp_nome,
     cp_email,
     cp_login
   };
 
-  // Só inclui senha se foi fornecida
   if (cp_password && cp_password.trim() !== '') {
     updateData.cp_password = cp_password;
   }
 
-  db.query('UPDATE cp_usuarios SET ? WHERE cp_id = ?', [updateData, userId], (err, result) => {
-    if (err) {
-      console.error('Erro ao atualizar perfil:', err);
-      res.status(500).json({ error: 'Erro ao atualizar perfil' });
-      return;
-    }
-
-    if (result.affectedRows === 0) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
-      return;
-    }
+  try {
+    await prisma.cp_usuarios.update({
+      where: { cp_id: userId },
+      data: updateData
+    });
 
     res.status(200).json({ message: 'Perfil atualizado com sucesso' });
-  });
+  } catch (err) {
+    console.error('Erro ao atualizar perfil:', err);
+    logError(err);
+    if (err.code === 'P2025') {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+    } else {
+      res.status(500).json({ error: 'Erro ao atualizar perfil' });
+    }
+  }
 });
-
 
 /* ESCOLA */
 
 // Buscar todas as escolas não excluídas
-app.get('/escolas', (req, res) => {
-  db.query('SELECT * FROM cp_escolas WHERE cp_ec_excluido = 0', (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result); // Envia os dados das escolas não excluídas como resposta
-    }
-  });
+app.get('/escolas', async (req, res) => {
+  try {
+    const escolas = await prisma.cp_escolas.findMany({
+      where: { cp_ec_excluido: false }
+    });
+
+    res.send(escolas);
+  } catch (err) {
+    console.error('Erro ao buscar escolas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
 });
 
+// Buscar escola específica pelo ID
+app.get('/escolas/:escolaId', async (req, res) => {
+  const escolaId = parseInt(req.params.escolaId);
 
-// Buscar uma escola específica pelo ID
-app.get('/escolas/:escolaId', (req, res) => {
-  const escolaId = req.params.escolaId;
-  db.query('SELECT * FROM cp_escolas WHERE cp_ec_id = ?', escolaId, (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else if (result.length === 0) {
+  try {
+    const escola = await prisma.cp_escolas.findUnique({
+      where: { cp_ec_id: escolaId }
+    });
+
+    if (escola) {
+      res.send(escola);
+    } else {
+      res.status(404).send({ msg: 'Escola não encontrada' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar escola:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+// Excluir escola pelo ID
+app.delete('/escolas/:escolaId', async (req, res) => {
+  const escolaId = parseInt(req.params.escolaId);
+
+  try {
+    await prisma.cp_escolas.delete({
+      where: { cp_ec_id: escolaId }
+    });
+
+    res.send({ msg: 'Escola excluída com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir escola:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao excluir escola' });
+  }
+});
+
+// Marcar escola como excluída (soft delete)
+app.delete('/delete-escola/:escolaId', async (req, res) => {
+  const escolaId = parseInt(req.params.escolaId);
+
+  try {
+    const updatedEscola = await prisma.cp_escolas.update({
+      where: { cp_ec_id: escolaId },
+      data: { cp_ec_excluido: true }
+    });
+
+    res.send({ msg: 'Escola marcada como excluída com sucesso' });
+  } catch (err) {
+    console.error('Erro ao marcar escola como excluída:', err);
+    logError(err);
+    if (err.code === 'P2025') {
       res.status(404).send({ msg: 'Escola não encontrada' });
     } else {
-      res.send(result[0]); // Envia os dados da escola como resposta
-    }
-  });
-});
-
-
-// Excluir uma escola pelo ID
-app.delete('/escolas/:escolaId', (req, res) => {
-  const escolaId = req.params.escolaId;
-  db.query('DELETE FROM cp_escolas WHERE cp_ec_id = ?', escolaId, (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro ao excluir escola' });
-    } else {
-      res.send({ msg: 'Escola excluída com sucesso' });
-    }
-  });
-});
-
-// Excluir uma escola pelo ID
-app.delete('/delete-escola/:escolaId', (req, res) => {
-  const escolaId = req.params.escolaId;
-  const updateQuery = 'UPDATE cp_escolas SET cp_ec_excluido = 1 WHERE cp_ec_id = ?';
-
-  db.query(updateQuery, escolaId, (err, result) => {
-    if (err) {
       res.status(500).send({ msg: 'Erro ao marcar escola como excluída' });
-    } else {
-      if (result.affectedRows === 0) {
-        res.status(404).send({ msg: 'Escola não encontrada' });
-      } else {
-        res.send({ msg: 'Escola marcada como excluída com sucesso' });
-      }
     }
-  });
+  }
 });
 
-app.put('/edit-escola/:escolaId', (req, res) => {
-  const escolaId = req.params.escolaId;
+// Editar escola
+app.put('/edit-escola/:escolaId', async (req, res) => {
+  const escolaId = parseInt(req.params.escolaId);
   const updatedEscola = req.body;
 
-  db.query('UPDATE cp_escolas SET ? WHERE cp_ec_id = ?', [updatedEscola, escolaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao editar escola:', err);
-      res.status(500).json({ error: 'Erro ao editar escola' });
-      return;
-    }
+  // Converter data se necessário
+  if (updatedEscola.cp_ec_data_cadastro) {
+    updatedEscola.cp_ec_data_cadastro = new Date(updatedEscola.cp_ec_data_cadastro);
+  }
+
+  try {
+    await prisma.cp_escolas.update({
+      where: { cp_ec_id: escolaId },
+      data: updatedEscola
+    });
+
     res.status(200).json({ message: 'Escola editada com sucesso' });
-  });
+  } catch (err) {
+    console.error('Erro ao editar escola:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao editar escola' });
+  }
 });
 
-app.post('/register-escola', (req, res) => {
-    console.log("Recebendo requisição de cadastro:", req.body);
+// Cadastrar nova escola
+app.post('/register-escola', async (req, res) => {
+  console.log("Recebendo requisição de cadastro:", req.body);
 
-    const { 
-        cp_ec_nome, 
-        cp_ec_responsavel, 
-        cp_ec_data_cadastro, 
-        cp_ec_endereco_rua, 
-        cp_ec_endereco_numero, 
-        cp_ec_endereco_cidade, 
-        cp_ec_endereco_bairro, 
-        cp_ec_endereco_estado, 
-        cp_ec_descricao,
-        cp_ec_excluido = 0 // Se não enviado, assume 0
-    } = req.body;
+  const { 
+    cp_ec_nome, 
+    cp_ec_responsavel, 
+    cp_ec_data_cadastro, 
+    cp_ec_endereco_rua, 
+    cp_ec_endereco_numero, 
+    cp_ec_endereco_cidade, 
+    cp_ec_endereco_bairro, 
+    cp_ec_endereco_estado, 
+    cp_ec_descricao,
+    cp_ec_excluido = false
+  } = req.body;
 
-    const newEscola = {
+  try {
+    const newEscola = await prisma.cp_escolas.create({
+      data: {
         cp_ec_nome,
         cp_ec_responsavel,
-        cp_ec_data_cadastro,
+        cp_ec_data_cadastro: cp_ec_data_cadastro ? new Date(cp_ec_data_cadastro) : null,
         cp_ec_endereco_rua,
         cp_ec_endereco_numero,
         cp_ec_endereco_cidade,
         cp_ec_endereco_bairro,
         cp_ec_endereco_estado,
         cp_ec_descricao: cp_ec_descricao || null,
-        cp_ec_excluido // Garante que está sempre sendo enviado
-    };
-
-    db.query('INSERT INTO cp_escolas SET ?', newEscola, (err, result) => {
-        if (err) {
-            console.error("Erro ao registrar escola:", err);
-            res.status(500).json({ msg: 'Erro ao registrar nova escola', error: err });
-        } else {
-            res.status(200).json({ msg: 'Escola registrada com sucesso' });
-        }
+        cp_ec_excluido
+      }
     });
+
+    res.status(200).json({ msg: 'Escola registrada com sucesso' });
+  } catch (err) {
+    console.error("Erro ao registrar escola:", err);
+    logError(err);
+    res.status(500).json({ msg: 'Erro ao registrar nova escola', error: err });
+  }
 });
 
+// Buscar usuários que são diretores (tipo 2)
+app.get('/users-escolas', async (req, res) => {
+  try {
+    const diretores = await prisma.cp_usuarios.findMany({
+      where: { cp_tipo_user: 2 }
+    });
 
-app.get('/users-escolas', (req, res) => {
-  db.query('SELECT * FROM cp_usuarios WHERE cp_tipo_user = 2', (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
+    res.send(diretores);
+  } catch (err) {
+    console.error('Erro ao buscar diretores:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
 });
 
 /* FIM ESCOLA */
 
 /* TURMA */
 
-// Rota para cadastrar uma nova turma
+// Cadastrar nova turma
 app.post('/register-turma', async (req, res) => {
   const { cp_tr_nome, cp_tr_data, cp_tr_id_professor, cp_tr_id_escola, cp_tr_curso_id, cp_tr_alunos } = req.body;
 
   try {
-    // Inicia uma transação para garantir consistência
-    await db.beginTransaction();
+    const result = await prisma.$transaction(async (prisma) => {
+      // Criar a turma
+      const newTurma = await prisma.cp_turmas.create({
+        data: {
+          cp_tr_nome,
+          cp_tr_data: new Date(cp_tr_data),
+          cp_tr_id_professor: parseInt(cp_tr_id_professor),
+          cp_tr_id_escola: parseInt(cp_tr_id_escola),
+          cp_tr_curso_id: cp_tr_curso_id ? parseInt(cp_tr_curso_id) : null
+        }
+      });
 
-    // Insere os dados da turma na tabela cp_turmas
-    const newTurma = {
-      cp_tr_nome,
-      cp_tr_data,
-      cp_tr_id_professor,
-      cp_tr_id_escola,
-      cp_tr_curso_id
-    };
-
-    db.query('INSERT INTO cp_turmas SET ?', newTurma, async (err, resultTurma) => {
-      if (err) {
-        console.error('Erro ao registrar turma:', err);
-        res.status(500).json({ msg: 'Erro ao registrar turma' });
-        return await db.rollback();
+      // Atualizar cp_turma_id para os alunos selecionados
+      if (cp_tr_alunos && Array.isArray(cp_tr_alunos)) {
+        for (const alunoId of cp_tr_alunos) {
+          await prisma.cp_usuarios.update({
+            where: { cp_id: parseInt(alunoId) },
+            data: { cp_turma_id: newTurma.cp_tr_id }
+          });
+        }
       }
 
-      if (resultTurma.affectedRows === 1 && resultTurma.insertId) {
-        const turmaId = resultTurma.insertId;
-        console.log("Turma ID:", turmaId);
-
-        // Atualiza cp_turma_id para os alunos selecionados na tabela cp_usuarios
-        const updatePromises = cp_tr_alunos.map(async (alunoId) => {
-          await db.query('UPDATE cp_usuarios SET cp_turma_id = ? WHERE cp_id = ?', [turmaId, alunoId]);
-        });
-
-        await Promise.all(updatePromises);
-
-        await db.commit();
-
-        res.status(200).json({ msg: 'Turma registrada com sucesso', turmaId });
-      } else {
-        await db.rollback();
-        console.error('Erro ao registrar turma: Não foi possível recuperar o ID da turma');
-        res.status(500).json({ msg: 'Erro ao registrar turma' });
-      }
+      return newTurma;
     });
-  } catch (error) {
-    await db.rollback();
 
-    console.error('Erro ao registrar turma:', error);
+    res.status(200).json({ msg: 'Turma registrada com sucesso', turmaId: result.cp_tr_id });
+  } catch (err) {
+    console.error('Erro ao registrar turma:', err);
+    logError(err);
     res.status(500).json({ msg: 'Erro ao registrar turma' });
   }
 });
 
-
-
-
-// Rota para associar alunos a uma turma e editar turma
+// Atualizar turma
 app.put('/update-turma/:turmaId', async (req, res) => {
-  const turmaId = req.params.turmaId;
+  const turmaId = parseInt(req.params.turmaId);
   const { cp_tr_nome, cp_tr_data, cp_tr_id_professor, cp_tr_id_escola, cp_tr_curso_id, cp_tr_alunos } = req.body;
 
   try {
-    // Inicia a transação
-    await db.beginTransaction();
-
-    // Atualiza os dados da turma
-    const updateTurma = {
-      cp_tr_nome,
-      cp_tr_data,
-      cp_tr_id_professor,
-      cp_tr_id_escola,
-      cp_tr_curso_id
-    };
-
-    db.query('UPDATE cp_turmas SET ? WHERE cp_tr_id = ?', [updateTurma, turmaId], async (err, result) => {
-      if (err) {
-        console.error('Erro ao atualizar turma:', err);
-        res.status(500).json({ msg: 'Erro ao atualizar turma' });
-        return await db.rollback();
-      }
-
-      if (result.affectedRows > 0) {
-        console.log("Turma Atualizada:", turmaId);
-
-        // Remove todos os alunos dessa turma antes de adicionar os novos
-        await db.query('UPDATE cp_usuarios SET cp_turma_id = NULL WHERE cp_turma_id = ?', [turmaId]);
-
-        // Atualiza cp_turma_id para os alunos selecionados na tabela cp_usuarios
-        if (Array.isArray(cp_tr_alunos) && cp_tr_alunos.length > 0) {
-          const updatePromises = cp_tr_alunos.map(async (alunoId) => {
-            await db.query('UPDATE cp_usuarios SET cp_turma_id = ? WHERE cp_id = ?', [turmaId, alunoId]);
-          });
-
-          await Promise.all(updatePromises);
+    const result = await prisma.$transaction(async (prisma) => {
+      // Atualizar a turma
+      const updatedTurma = await prisma.cp_turmas.update({
+        where: { cp_tr_id: turmaId },
+        data: {
+          cp_tr_nome,
+          cp_tr_data: new Date(cp_tr_data),
+          cp_tr_id_professor: parseInt(cp_tr_id_professor),
+          cp_tr_id_escola: parseInt(cp_tr_id_escola),
+          cp_tr_curso_id: cp_tr_curso_id ? parseInt(cp_tr_curso_id) : null
         }
+      });
 
-        await db.commit();
+      // Remover todos os alunos dessa turma antes de adicionar os novos
+      await prisma.cp_usuarios.updateMany({
+        where: { cp_turma_id: turmaId },
+        data: { cp_turma_id: null }
+      });
 
-        res.status(200).json({ msg: 'Turma atualizada com sucesso', turmaId });
-      } else {
-        await db.rollback();
-        console.error('Erro ao atualizar turma: Nenhuma linha afetada');
-        res.status(500).json({ msg: 'Erro ao atualizar turma' });
+      // Atualizar cp_turma_id para os alunos selecionados
+      if (Array.isArray(cp_tr_alunos) && cp_tr_alunos.length > 0) {
+        for (const alunoId of cp_tr_alunos) {
+          await prisma.cp_usuarios.update({
+            where: { cp_id: parseInt(alunoId) },
+            data: { cp_turma_id: turmaId }
+          });
+        }
       }
+
+      return updatedTurma;
     });
-  } catch (error) {
-    await db.rollback();
-    console.error('Erro ao atualizar turma:', error);
+
+    res.status(200).json({ msg: 'Turma atualizada com sucesso', turmaId });
+  } catch (err) {
+    console.error('Erro ao atualizar turma:', err);
+    logError(err);
     res.status(500).json({ msg: 'Erro ao atualizar turma' });
   }
 });
 
+// Excluir turma
+app.delete('/delete-turma/:turmaId', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
 
-// Rota para excluir uma turma pelo ID
-app.delete('/delete-turma/:turmaId', (req, res) => {
-  const turmaId = req.params.turmaId;
+  try {
+    await prisma.$transaction(async (prisma) => {
+      // Remover associação dos usuários
+      await prisma.cp_usuarios.updateMany({
+        where: { cp_turma_id: turmaId },
+        data: { cp_turma_id: null }
+      });
 
-  // 1. Atualiza a tabela cp_usuarios: para todos os registros onde cp_turma_id for igual ao id da turma,
-  //    define cp_turma_id como NULL.
-  db.query(
-    'UPDATE cp_usuarios SET cp_turma_id = NULL WHERE cp_turma_id = ?',
-    [turmaId],
-    (err, result) => {
-      if (err) {
-        console.error('Erro ao atualizar cp_usuarios:', err);
-        return res.status(500).send({ msg: 'Erro ao atualizar cp_usuarios' });
-      }
+      // Excluir a turma
+      await prisma.cp_turmas.delete({
+        where: { cp_tr_id: turmaId }
+      });
+    });
 
-      // 2. Após atualizar os usuários, exclui a turma da tabela cp_turmas.
-      db.query(
-        'DELETE FROM cp_turmas WHERE cp_tr_id = ?',
-        [turmaId],
-        (err, result) => {
-          if (err) {
-            console.error('Erro ao excluir turma:', err);
-            return res.status(500).send({ msg: 'Erro ao excluir turma' });
-          }
-          console.log('Turma excluída com sucesso e cp_usuarios atualizado');
-          res.send({ msg: 'Turma excluída com sucesso' });
-        }
-      );
-    }
-  );
-});
-
-
-// Rota para buscar todas as turmas
-app.get('/turmas', (req, res) => {
-  db.query('SELECT t.*, u.cp_nome AS nomeDoProfessor, e.cp_ec_nome AS nomeDaEscola FROM cp_turmas t JOIN cp_usuarios u ON t.cp_tr_id_professor = u.cp_id JOIN cp_escolas e ON t.cp_tr_id_escola = e.cp_ec_id', (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar as turmas:', err);
-      res.status(500).send({ msg: 'Erro ao buscar as turmas' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-// Rota para buscar uma turma específica pelo ID
-app.get('/turmas/:turmaId', (req, res) => {
-  const turmaId = req.params.turmaId;
-
-  db.query('SELECT * FROM cp_turmas WHERE cp_tr_id = ?', turmaId, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar a turma:', err);
-      res.status(500).send({ msg: 'Erro ao buscar a turma' });
-    } else if (result.length === 0) {
-      res.status(404).send({ msg: 'Turma não encontrada' });
-    } else {
-      res.send(result[0]);
-    }
-  });
-});
-
-
-// Rota para buscar apenas os professores
-app.get('/users-professores', (req, res) => {
-  db.query('SELECT cp_id, cp_nome, cp_email, cp_tipo_user FROM cp_usuarios WHERE cp_tipo_user = 4', (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar os professores:', err);
-      res.status(500).send({ msg: 'Erro no servidor ao buscar os professores' });
-    } else {
-      res.send(result); // Envia os dados dos professores como resposta
-    }
-  });
-});
-
-app.get('/escola/alunos/:id', (req, res) => {
-  const escolaId = req.params.id;
-
-  db.query(
-    'SELECT * FROM cp_usuarios WHERE cp_escola_id = ? AND cp_tipo_user = 5 AND cp_excluido != 1',
-    [escolaId],
-    (err, result) => {
-      if (err) {
-        console.error('Erro ao buscar alunos associados à escola:', err);
-        res.status(500).send({ msg: 'Erro no servidor' });
-      } else {
-        if (result.length > 0) {
-          res.send(result);
-        } else {
-          res.status(404).send({ msg: 'Nenhum aluno cadastrado nesta escola.' });
-        }
-      }
-    }
-  );
-});
-
-
-/* FIM TURMA */
-
-// CADASTRO CURSO //
-
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     cb(null, 'AudiosCurso'); // Define a pasta onde os áudios serão salvos
-//   },
-//   filename: (req, file, cb) => {
-
-//     cb(null, file.originalname);
-
-//   }
-// });
-
-
-// Configuração do armazenamento para PDFs
-const pdfStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'MaterialCurso')); // Pasta de PDFs
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname); // Nome do arquivo com timestamp
+    console.log('Turma excluída com sucesso e cp_usuarios atualizado');
+    res.send({ msg: 'Turma excluída com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir turma:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao excluir turma' });
   }
 });
 
-const uploadPDF = multer({ storage: pdfStorage }).fields([
+// Buscar todas as turmas
+app.get('/turmas', async (req, res) => {
+  try {
+    const turmas = await prisma.cp_turmas.findMany({
+      include: {
+        professor: {
+          select: { cp_nome: true }
+        },
+        escola: {
+          select: { cp_ec_nome: true }
+        }
+      }
+    });
+
+    // Mapear os resultados para o formato esperado
+    const turmasFormatted = turmas.map(turma => ({
+      ...turma,
+      nomeDoProfessor: turma.professor.cp_nome,
+      nomeDaEscola: turma.escola.cp_ec_nome
+    }));
+
+    res.send(turmasFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar as turmas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar as turmas' });
+  }
+});
+
+// Buscar turma específica pelo ID
+app.get('/turmas/:turmaId', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
+
+  try {
+    const turma = await prisma.cp_turmas.findUnique({
+      where: { cp_tr_id: turmaId }
+    });
+
+    if (turma) {
+      res.send(turma);
+    } else {
+      res.status(404).send({ msg: 'Turma não encontrada' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar a turma:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar a turma' });
+  }
+});
+
+// Buscar apenas os professores
+app.get('/users-professores', async (req, res) => {
+  try {
+    const professores = await prisma.cp_usuarios.findMany({
+      where: { cp_tipo_user: 4 },
+      select: {
+        cp_id: true,
+        cp_nome: true,
+        cp_email: true,
+        cp_tipo_user: true
+      }
+    });
+
+    res.send(professores);
+  } catch (err) {
+    console.error('Erro ao buscar os professores:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor ao buscar os professores' });
+  }
+});
+
+// Buscar alunos de uma escola específica
+app.get('/escola/alunos/:id', async (req, res) => {
+  const escolaId = parseInt(req.params.id);
+
+  try {
+    const alunos = await prisma.cp_usuarios.findMany({
+      where: {
+        cp_escola_id: escolaId,
+        cp_tipo_user: 5,
+        cp_excluido: { not: 1 }
+      }
+    });
+
+    if (alunos.length > 0) {
+      res.send(alunos);
+    } else {
+      res.status(404).send({ msg: 'Nenhum aluno cadastrado nesta escola.' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar alunos associados à escola:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+/* FIM TURMA */
+
+/* CURSO */
+
+// Configuração para upload de PDFs
+const storagePDF = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'MaterialCurso'); 
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueSuffix);
+  }
+});
+
+const uploadPDF = multer({ 
+  storage: storagePDF,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos PDF são permitidos!'), false);
+    }
+  }
+}).fields([
   { name: 'pdf1', maxCount: 1 },
   { name: 'pdf2', maxCount: 1 },
   { name: 'pdf3', maxCount: 1 }
 ]);
 
-const storage = multer.diskStorage({
+// Configuração para upload de áudios
+const storageAudio = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'AudiosCurso'));
+    cb(null, 'AudioCurso');
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname); // SALVA EXATAMENTE COMO ENVIOU
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueSuffix);
   }
 });
 
-// Servindo arquivos estáticos da pasta 'MaterialCurso'
+const uploadAudio = multer({ storage: storageAudio });
+
+// Servir arquivos estáticos
 app.use('/MaterialCurso', express.static(path.join(__dirname, 'MaterialCurso')));
-// Servir os arquivos estáticos da pasta AudiosCurso
-app.use('/audios', express.static(path.join(__dirname, 'AudiosCurso')));
+app.use('/AudioCurso', express.static(path.join(__dirname, 'AudioCurso')));
 
+// Buscar todos os cursos
+app.get('/cursos', async (req, res) => {
+  try {
+    const cursos = await prisma.cp_curso.findMany({
+      orderBy: { cp_curso_id: 'asc' }
+    });
 
-const upload = multer({ storage });
-// Rota para lidar com o upload de arquivos de áudio
-app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) => {
-  const cursoId = req.params.cursoId; // Obtém o ID do curso dos parâmetros da rota
-  const audios = req.files; // Obtém os arquivos de áudio enviados
-
-  // Verifica se existem arquivos na requisição
-  if (!audios || audios.length === 0) {
-    return res.status(400).send('Nenhum arquivo de áudio enviado.');
+    res.send(cursos);
+  } catch (err) {
+    console.error('Erro ao buscar cursos:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar cursos' });
   }
+});
+
+// Cadastrar novo curso com PDFs
+app.post('/cursos', uploadPDF, async (req, res) => {
+  const { cp_nome_curso, cp_youtube_link_curso } = req.body;
+
+  console.log("Arquivos recebidos:", req.files);
+  console.log("Dados recebidos no corpo:", req.body);
+
+  const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].filename : null;
+  const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].filename : null;
+  const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].filename : null;
 
   try {
-    const audioPromises = audios.map(async audio => {
-      const nomeOriginal = audio.originalname;
-        const nomeSalvo   = audio.filename;
-        const newAudio = {
-          cp_curso_id: cursoId,
-          cp_nome_audio: nomeOriginal,
-          cp_arquivo_audio: `/AudiosCurso/${nomeSalvo}`
-        };
-
-
-
-      // Retorna uma promessa para cada inserção de áudio no banco de dados
-      return new Promise((resolve, reject) => {
-        db.query('INSERT INTO cp_audio SET ?', newAudio, (err, result) => {
-          if (err) {
-            console.error('Erro ao registrar novo áudio:', err);
-            reject(err); // Rejeita a promessa em caso de erro
-          } else {
-            console.log('Áudio registrado com sucesso');
-            resolve(result); // Resolve a promessa em caso de sucesso
-          }
-        });
-      });
+    const newCurso = await prisma.cp_curso.create({
+      data: {
+        cp_nome_curso,
+        cp_youtube_link_curso,
+        cp_pdf1_curso: pdf1 ? `/MaterialCurso/${pdf1}` : null,
+        cp_pdf2_curso: pdf2 ? `/MaterialCurso/${pdf2}` : null,
+        cp_pdf3_curso: pdf3 ? `/MaterialCurso/${pdf3}` : null,
+      }
     });
 
-    // Aguarda o término de todas as consultas ao banco de dados
-    await Promise.all(audioPromises);
-
-    // Envia a resposta após a conclusão de todas as inserções no banco de dados
-    res.send({ msg: 'Áudio(s) registrado(s) com sucesso' });
-  } catch (error) {
-    console.error('Erro ao salvar arquivo(s) de áudio:', error);
-    res.status(500).send({ msg: 'Erro ao salvar arquivo(s) de áudio' });
+    console.log('Curso registrado com sucesso, ID:', newCurso.cp_curso_id);
+    res.send({ msg: 'Curso registrado com sucesso', cursoId: newCurso.cp_curso_id });
+  } catch (err) {
+    console.error('Erro ao registrar novo curso:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao registrar novo curso' });
   }
 });
 
-// Rota para atualizar os áudios de um curso, removendo os existentes e adicionando novos (somente se novos forem enviados)
+// Buscar material do curso por ID
+app.get('/curso-material/:cursoId', async (req, res) => {
+  const cursoId = parseInt(req.params.cursoId);
 
-const inserirNovosAudios = async (novosAudios, cursoId, res) => {
-  const audioPromises = novosAudios.map((audio) => {
-    const nomeArquivoOriginal = audio.originalname;
-    const filePath = `AudiosCurso/${nomeArquivoOriginal}`;
-
-    const newAudio = {
-      cp_curso_id: cursoId,
-      cp_nome_audio: nomeArquivoOriginal,
-      cp_arquivo_audio: filePath
-    };
-
-    return new Promise((resolve, reject) => {
-      db.query('INSERT INTO cp_audio SET ?', newAudio, (err, result) => {
-        if (err) {
-          console.error('Erro ao registrar novo áudio:', err);
-          reject(err);
-        } else {
-          console.log('Novo áudio registrado com sucesso:', nomeArquivoOriginal);
-          resolve(result);
-        }
-      });
-    });
-  });
-
-  await Promise.all(audioPromises); // Apenas aguarda, não envia resposta aqui
-};
-
-
-
-
-// Rota para cadastrar um novo curso
-app.post('/register-curso', (req, res) => {
-  const { cp_nome_curso } = req.body;
-
-  const newCurso = {
-    cp_nome_curso
-  };
-
-  db.query('INSERT INTO cp_curso SET ?', newCurso, (err, result) => {
-    if (err) {
-      console.error('Erro ao registrar novo curso:', err);
-      res.status(500).send({ msg: 'Erro ao registrar novo curso' });
-    } else {
-      console.log('Curso registrado com sucesso');
-      const cursoId = result.insertId; // Obtém o ID do curso recém-cadastrado
-      res.send({ msg: 'Curso registrado com sucesso', cursoId }); // Retorna o ID do curso
-    }
-  });
-});
-
-
-// Rota para buscar todos os cursos
-app.get('/cursos', (req, res) => {
-  db.query('SELECT * FROM cp_curso', (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar os cursos:', err);
-      res.status(500).send({ msg: 'Erro ao buscar os cursos' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-// Rota para buscar um curso pelo ID
-app.get('/cursos/:cursoId', (req, res) => {
-  const cursoId = req.params.cursoId;
-
-  db.query('SELECT * FROM cp_curso WHERE cp_curso_id = ?', cursoId, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar o curso:', err);
-      res.status(500).send({ msg: 'Erro ao buscar o curso' });
-    } else {
-      if (result.length > 0) {
-        res.send(result[0]); // Retorna o primeiro curso encontrado (deve haver apenas um)
-      } else {
-        res.status(404).send({ msg: 'Curso não encontrado' });
+  try {
+    const curso = await prisma.cp_curso.findUnique({
+      where: { cp_curso_id: cursoId },
+      select: {
+        cp_youtube_link_curso: true,
+        cp_pdf1_curso: true,
+        cp_pdf2_curso: true,
+        cp_pdf3_curso: true,
       }
+    });
+
+    if (curso) {
+      console.log('Resultados do banco de dados:', curso);
+
+      const responseData = {
+        cp_youtube_link_curso: curso.cp_youtube_link_curso,
+        cp_pdf1_curso: curso.cp_pdf1_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf1_curso}` : null,
+        cp_pdf2_curso: curso.cp_pdf2_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf2_curso}` : null,
+        cp_pdf3_curso: curso.cp_pdf3_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf3_curso}` : null,
+      };
+
+      res.status(200).json(responseData);
+    } else {
+      res.status(404).json({ error: 'Materiais não encontrados para este curso' });
     }
-  });
+  } catch (err) {
+    console.error('Erro ao buscar materiais do curso:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar materiais do curso' });
+  }
 });
 
-app.put('/update-curso/:cursoId', (req, res) => {
-  // Faz upload APENAS dos PDFs
-  uploadPDF(req, res, async function (err) {
-    if (err && err.code !== 'LIMIT_UNEXPECTED_FILE') {
-      console.error('Erro ao processar PDFs:', err);
-      logError(err);
-      return res.status(500).send({ msg: 'Erro ao processar PDFs' });
-    }
+// Buscar curso ID da turma
+app.get('/curso-id-da-turma/:turmaId', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
 
-    const cursoId = req.params.cursoId;
-    const { cp_nome_curso, cp_youtube_link_curso = "" } = req.body;
-    const arquivosPDF = req.files || {};
+  try {
+    const turma = await prisma.cp_turmas.findUnique({
+      where: { cp_tr_id: turmaId },
+      select: { cp_tr_curso_id: true }
+    });
 
-    const updatedCurso = {
-      cp_nome_curso,
-      cp_youtube_link_curso,
-    };
-
-    if (arquivosPDF['pdf1']) {
-      updatedCurso.cp_pdf1_curso = `/MaterialCurso/${arquivosPDF['pdf1'][0].filename}`;
+    if (turma) {
+      res.json(turma);
+    } else {
+      res.status(404).json({ error: 'Turma não encontrada.' });
     }
-    if (arquivosPDF['pdf2']) {
-      updatedCurso.cp_pdf2_curso = `/MaterialCurso/${arquivosPDF['pdf2'][0].filename}`;
-    }
-    if (arquivosPDF['pdf3']) {
-      updatedCurso.cp_pdf3_curso = `/MaterialCurso/${arquivosPDF['pdf3'][0].filename}`;
-    }
-
-    try {
-      // Atualiza somente o curso e PDFs (NÃO mexemos nos áudios aqui)
-      await new Promise((resolve, reject) => {
-        db.query(
-          'UPDATE cp_curso SET ? WHERE cp_curso_id = ?',
-          [updatedCurso, cursoId],
-          (err) => {
-            if (err) return reject(err);
-            resolve();
-          }
-        );
-      });
-
-      return res.send({ msg: 'Curso atualizado com sucesso (PDF e dados).' });
-    } catch (err) {
-      console.error('Erro ao atualizar curso:', err);
-      logError(err);
-      return res.status(500).send({ msg: 'Erro ao atualizar curso' });
-    }
-  });
+  } catch (err) {
+    console.error('Erro ao buscar curso:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
 });
 
+// Buscar áudios do curso
+app.get('/audios-curso/:cursoId', async (req, res) => {
+  const cursoId = parseInt(req.params.cursoId);
 
-// Rota para atualizar os áudios de um curso separadamente
-// Rota para atualizar os áudios de um curso separadamente
-app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
-  const cursoId     = req.params.cursoId;
+  try {
+    const audios = await prisma.cp_audio.findMany({
+      where: { cp_curso_id: cursoId },
+      select: {
+        cp_audio_id: true,
+        cp_nome_audio: true
+      }
+    });
+
+    res.send(audios);
+  } catch (err) {
+    console.error('Erro ao buscar os áudios do curso:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar os áudios do curso' });
+  }
+});
+
+// Servir arquivos de áudio
+app.get('/audio/:nomeAudio', (req, res) => {
+  const nomeAudio = req.params.nomeAudio;
+  const filePath = path.join(__dirname, 'AudioCurso', nomeAudio);
+  res.sendFile(filePath);
+});
+
+// Upload de áudios para curso
+app.post('/audios-curso/:cursoId', uploadAudio.array('audios'), async (req, res) => {
+  const cursoId = parseInt(req.params.cursoId);
   const novosAudios = req.files;
 
-  // Se não enviou nada, deleta todos os antigos
   if (!novosAudios || novosAudios.length === 0) {
     try {
-      // busca IDs e caminhos dos áudios existentes
-      const registros = await new Promise((resolve, reject) => {
-        db.query(
-          'SELECT cp_audio_id, cp_arquivo_audio FROM cp_audio WHERE cp_curso_id = ?',
-          [cursoId],
-          (err, results) => err ? reject(err) : resolve(results)
-        );
-      });
-      // deleta visualizações
-      const idsAntigos = registros.map(r => r.cp_audio_id);
-      if (idsAntigos.length) {
-        await new Promise((resolve, reject) => {
-          db.query(
-            'DELETE FROM cp_vizu_aud_usuarios WHERE cp_id_audio IN (?)',
-            [idsAntigos],
-            err => err ? reject(err) : resolve()
-          );
-        });
-      }
-      // remove arquivos do disco
-      for (const audio of registros) {
-        try { await fs.promises.unlink(path.join(__dirname, audio.cp_arquivo_audio)); }
-        catch {}
-      }
-      // deleta registros do cp_audio
-      await new Promise((resolve, reject) => {
-        db.query(
-          'DELETE FROM cp_audio WHERE cp_curso_id = ?',
-          [cursoId],
-          err => err ? reject(err) : resolve()
-        );
+      await prisma.cp_audio.deleteMany({
+        where: { cp_curso_id: cursoId }
       });
       return res.send({ msg: 'Todos os áudios foram removidos.' });
     } catch (err) {
@@ -988,265 +914,99 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
     }
   }
 
-  // Se enviou áudios, remove os antigos e salva os novos
   try {
-    // busca registros antigos pra deletar do disco e do banco
-    const registros = await new Promise((resolve, reject) => {
-      db.query(
-        'SELECT cp_audio_id, cp_arquivo_audio FROM cp_audio WHERE cp_curso_id = ?',
-        [cursoId],
-        (err, results) => err ? reject(err) : resolve(results)
-      );
-    });
-    // deleta visualizações
-    const idsAntigos = registros.map(r => r.cp_audio_id);
-    if (idsAntigos.length) {
-      await new Promise((resolve, reject) => {
-        db.query(
-          'DELETE FROM cp_vizu_aud_usuarios WHERE cp_id_audio IN (?)',
-          [idsAntigos],
-          err => err ? reject(err) : resolve()
-        );
+    await prisma.$transaction(async (prisma) => {
+      // Buscar áudios antigos para deletar arquivos do disco
+      const registros = await prisma.cp_audio.findMany({
+        where: { cp_curso_id: cursoId },
+        select: { cp_audio_id: true, cp_arquivo_audio: true }
       });
-    }
-    // remove arquivos do disco
-    for (const audio of registros) {
-      try { await fs.promises.unlink(path.join(__dirname, audio.cp_arquivo_audio)); }
-      catch {}
-    }
-    // deleta registros do cp_audio
-    await new Promise((resolve, reject) => {
-      db.query(
-        'DELETE FROM cp_audio WHERE cp_curso_id = ?',
-        [cursoId],
-        err => err ? reject(err) : resolve()
-      );
-    });
-    // insere novos áudios
-    for (const audio of novosAudios) {
-      const nomeOriginal = audio.originalname;
-      const nomeSalvo    = audio.filename;
-      const newAudio     = {
-        cp_curso_id:     cursoId,
-        cp_nome_audio:   nomeOriginal,
-        cp_arquivo_audio: `/AudiosCurso/${nomeSalvo}`
-      };
-      await new Promise((resolve, reject) => {
-        db.query('INSERT INTO cp_audio SET ?', newAudio, (err, result) => {
-          if (err) {
-            console.error('Erro ao registrar novo áudio:', err);
-            reject(err);
-          } else {
-            console.log('Áudio registrado:', nomeOriginal);
-            resolve(result);
+
+      // Deletar visualizações de áudios antigos
+      const idsAntigos = registros.map(r => r.cp_audio_id);
+      if (idsAntigos.length) {
+        await prisma.cp_vizu_aud_usuarios.deleteMany({
+          where: { cp_id_audio: { in: idsAntigos } }
+        });
+      }
+
+      // Remover arquivos do disco
+      for (const audio of registros) {
+        try { 
+          await fs.promises.unlink(path.join(__dirname, audio.cp_arquivo_audio)); 
+        } catch {}
+      }
+
+      // Deletar registros antigos
+      await prisma.cp_audio.deleteMany({
+        where: { cp_curso_id: cursoId }
+      });
+
+      // Inserir novos áudios
+      for (const audio of novosAudios) {
+        await prisma.cp_audio.create({
+          data: {
+            cp_curso_id: cursoId,
+            cp_nome_audio: audio.originalname,
+            cp_arquivo_audio: `/AudioCurso/${audio.filename}`
           }
         });
-      });
-    }
-    return res.send({ msg: 'Áudios atualizados com sucesso.' });
+        console.log('Áudio registrado:', audio.originalname);
+      }
+    });
+
+    res.send({ msg: 'Áudios atualizados com sucesso.' });
   } catch (err) {
     console.error('Erro ao atualizar áudios:', err);
     logError(err);
-    return res.status(500).send({ msg: 'Erro ao atualizar os áudios.' });
+    res.status(500).send({ msg: 'Erro ao atualizar os áudios.' });
   }
 });
 
-
-
-// Rota para cadastrar um novo curso com upload de PDFs
-app.post('/cursos', uploadPDF, (req, res) => {
-  const { cp_nome_curso, cp_youtube_link_curso } = req.body;
-
-  // Verificar se os arquivos foram enviados corretamente
-  console.log("Arquivos recebidos:", req.files);
-  console.log("Dados recebidos no corpo:", req.body);
-
-  const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].filename : null;
-  const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].filename : null;
-  const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].filename : null;
-
-  const newCurso = {
-    cp_nome_curso,
-    cp_youtube_link_curso,
-    cp_pdf1_curso: pdf1 ? `/MaterialCurso/${pdf1}` : null,
-    cp_pdf2_curso: pdf2 ? `/MaterialCurso/${pdf2}` : null,
-    cp_pdf3_curso: pdf3 ? `/MaterialCurso/${pdf3}` : null,
-
-  };
-
-  // Inserir o novo curso no banco de dados
-  db.query('INSERT INTO cp_curso SET ?', newCurso, (err, result) => {
-    if (err) {
-      console.error('Erro ao registrar novo curso:', err);
-      res.status(500).send({ msg: 'Erro ao registrar novo curso' });
-    } else {
-      const cursoId = result.insertId; // Obtém o ID do curso recém-inserido
-      console.log('Curso registrado com sucesso, ID:', cursoId);
-      res.send({ msg: 'Curso registrado com sucesso', cursoId });
-    }
-  });
-});
-
-
-// Rota para buscar materiais do curso (YouTube e PDFs) a partir do ID do curso (cursoId)
-app.get('/curso-material/:cursoId', (req, res) => {
-  const { cursoId } = req.params;
-
-  const query = `
-  SELECT
-    cp_youtube_link_curso,
-    cp_pdf1_curso,
-    cp_pdf2_curso,
-    cp_pdf3_curso
-  FROM cp_curso
-  WHERE cp_curso_id = ?
-`;
-
-
-  db.query(query, [cursoId], (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar materiais do curso:', err);
-      return res.status(500).json({ error: 'Erro ao buscar materiais do curso' });
-    }
-
-    if (result.length > 0) {
-      // Adicione um console.log para depuração
-      console.log('Resultados do banco de dados:', result[0]);
-
-      // Construa as URLs dos PDFs somente se os resultados não forem nulos ou indefinidos
-      const responseData = {
-        cp_youtube_link_curso: result[0].cp_youtube_link_curso,
-        cp_pdf1_curso: result[0].cp_pdf1_curso ? `https://testes.cursoviolaocristao.com.br${result[0].cp_pdf1_curso}` : null,
-        cp_pdf2_curso: result[0].cp_pdf2_curso ? `https://testes.cursoviolaocristao.com.br${result[0].cp_pdf2_curso}` : null,
-        cp_pdf3_curso: result[0].cp_pdf3_curso ? `https://testes.cursoviolaocristao.com.br${result[0].cp_pdf3_curso}` : null,
-      };
-
-
-      res.status(200).json(responseData); // Retorna os dados formatados com URLs completas
-    } else {
-      res.status(404).json({ error: 'Materiais não encontrados para este curso' });
-    }
-  });
-});
-
-
-app.get('/curso-id-da-turma/:turmaId', (req, res) => {
-  const turmaId = req.params.turmaId;
-
-  db.query('SELECT cp_tr_curso_id FROM cp_turmas WHERE cp_tr_id = ?', [turmaId], (err, results) => {
-    if (err) {
-      console.error('Erro ao buscar curso:', err);
-      res.status(500).json({ error: 'Erro interno do servidor.' });
-    } else if (results.length === 0) {
-      res.status(404).json({ error: 'Turma não encontrada.' });
-    } else {
-      res.json(results[0]);
-    }
-  });
-});
-
-// Rota para buscar todos os áudios associados a um curso específico
-// app.get('/audios-curso/:cursoId', (req, res) => {
-//   const cursoId = req.params.cursoId;
-
-//   db.query('SELECT * FROM cp_audio WHERE cp_curso_id = ?', cursoId, (err, result) => {
-//     if (err) {
-//       console.error('Erro ao buscar os áudios do curso:', err);
-//       res.status(500).send({ msg: 'Erro ao buscar os áudios do curso' });
-//     } else {
-//       res.send(result);
-//     }
-//   });
-// });
-app.get('/audios-curso/:cursoId', (req, res) => {
-  const cursoId = req.params.cursoId;
-  db.query('SELECT cp_audio_id, cp_nome_audio FROM cp_audio WHERE cp_curso_id = ?', cursoId, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar os áudios do curso:', err);
-      res.status(500).send({ msg: 'Erro ao buscar os áudios do curso' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.get('/audio/:nomeAudio', (req, res) => {
-  const nomeAudio = req.params.nomeAudio;
-  // Monta o caminho usando o diretório relativo, sem a barra inicial
-  const filePath = path.join(__dirname, 'AudiosCurso', nomeAudio);
-  res.sendFile(filePath);
-});
-
-
-
+// Deletar curso
 app.delete('/delete-curso/:cursoId', async (req, res) => {
-  const cursoId = req.params.cursoId;
+  const cursoId = parseInt(req.params.cursoId);
 
   try {
-    // Exclui os áudios associados ao curso
-    await db.query('DELETE FROM cp_audio WHERE cp_curso_id = ?', cursoId);
+    await prisma.$transaction(async (prisma) => {
+      // Excluir áudios associados ao curso
+      await prisma.cp_audio.deleteMany({
+        where: { cp_curso_id: cursoId }
+      });
 
-    // Em seguida, exclui o curso
-    await db.query('DELETE FROM cp_curso WHERE cp_curso_id = ?', cursoId);
+      // Excluir o curso
+      await prisma.cp_curso.delete({
+        where: { cp_curso_id: cursoId }
+      });
+    });
 
     res.send({ msg: 'Curso e áudios associados excluídos com sucesso' });
-  } catch (error) {
-    console.error('Erro ao excluir curso e áudios associados:', error);
+  } catch (err) {
+    console.error('Erro ao excluir curso e áudios associados:', err);
+    logError(err);
     res.status(500).send({ msg: 'Erro ao excluir curso e áudios associados' });
   }
 });
 
-
-
-
-// Rota para cadastrar perguntas associadas a um curso
-app.post('/cursos/:cursoId/perguntas', async (req, res) => {
-  const cursoId = req.params.cursoId;
-  const { perguntas } = req.body;
+// Buscar turmas por professor
+app.get('/cp_turmas/professor/:professorId', async (req, res) => {
+  const professorId = parseInt(req.params.professorId);
 
   try {
-    await db.beginTransaction(); // Inicia uma nova transação
+    const turmas = await prisma.cp_turmas.findMany({
+      where: { cp_tr_id_professor: professorId }
+    });
 
-    for (const p of perguntas) {
-      const [result] = await db.query(
-        'INSERT INTO cp_pergunta (cp_curso_id, tipo, texto) VALUES (?, ?, ?)',
-        [cursoId, p.tipoPergunta, p.pergunta]
-      );
-      const perguntaId = result.insertId;
-
-      if (p.tipoPergunta === 'marcar') {
-        for (const opcao of p.opcoes) {
-          await db.query(
-            'INSERT INTO cp_opcao (cp_pergunta_id, texto) VALUES (?, ?)',
-            [perguntaId, opcao]
-          );
-        }
-      }
-    }
-
-    await db.commit(); // Confirma a transação
-    res.status(201).send({ success: true, message: 'Perguntas cadastradas com sucesso' });
-  } catch (error) {
-    await db.rollback(); // Reverte a transação em caso de erro
-    console.error('Erro ao cadastrar perguntas:', error);
-    res.status(500).send({ success: false, message: 'Erro ao cadastrar perguntas' });
+    res.send(turmas);
+  } catch (err) {
+    console.error('Erro ao buscar turmas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar turmas' });
   }
 });
 
-app.get('/cp_turmas/professor/:professorId', (req, res) => {
-  const professorId = req.params.professorId;
-
-  db.query('SELECT * FROM cp_turmas WHERE cp_tr_id_professor = ?', professorId, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar turmas:', err);
-      res.status(500).send({ msg: 'Erro ao buscar turmas' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.post('/cursos/batch', (req, res) => {
+// Buscar cursos por IDs (batch)
+app.post('/cursos/batch', async (req, res) => {
   try {
     const cursoIds = req.body.cursoIds;
 
@@ -1254,1783 +1014,379 @@ app.post('/cursos/batch', (req, res) => {
       return res.status(400).send({ msg: 'Nenhum cursoId fornecido' });
     }
 
-    const placeholders = cursoIds.map(() => '?').join(',');
-    const query = `SELECT * FROM cp_curso WHERE cp_curso_id IN (${placeholders})`;
-
-    db.query(query, cursoIds, (err, result) => {
-      if (err) {
-        console.error('Erro ao buscar cursos:', err);
-        return res.status(500).send({ msg: 'Erro ao buscar cursos' });
-      }
-      res.send(result);
+    const cursos = await prisma.cp_curso.findMany({
+      where: { cp_curso_id: { in: cursoIds.map(id => parseInt(id)) } }
     });
+
+    res.send(cursos);
   } catch (err) {
     console.error('Erro inesperado:', err);
+    logError(err);
     res.status(500).send({ msg: 'Erro inesperado no servidor' });
   }
 });
 
+/* FIM CURSO */
 
-/* Fim curso */
+/* CHAMADAS */
 
-// Rota para buscar os alunos de uma turma específica
-app.get('/turmas/:turmaId/alunos', (req, res) => {
-  const turmaId = req.params.turmaId;
+// Buscar alunos de uma turma específica
+app.get('/turmas/:turmaId/alunos', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
 
-  db.query('SELECT * FROM cp_usuarios WHERE cp_turma_id = ? AND cp_excluido = 0', turmaId, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar os alunos:', err);
-      res.status(500).send({ msg: 'Erro ao buscar os alunos' });
-    } else if (result.length === 0) {
+  try {
+    const alunos = await prisma.cp_usuarios.findMany({
+      where: {
+        cp_turma_id: turmaId,
+        cp_excluido: 0
+      }
+    });
+
+    if (alunos.length === 0) {
       res.status(404).send({ msg: 'Nenhum aluno encontrado para esta turma.' });
     } else {
-      res.send(result);
+      res.send(alunos);
     }
-  });
+  } catch (err) {
+    console.error('Erro ao buscar os alunos:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar os alunos' });
+  }
 });
 
-// Rota para salvar uma chamada
-app.post('/chamadas', (req, res) => {
+// Salvar chamada
+app.post('/chamadas', async (req, res) => {
   const { turmaId, alunoId, data, hora, status } = req.body;
 
-  // Log dos dados recebidos
   console.log('Dados recebidos:', req.body);
 
-  // Consulta SQL simplificada
-  const query = `
-    INSERT INTO cp_chamadas (cp_ch_turma_id, cp_ch_aluno_id, cp_ch_data, cp_ch_hora, cp_ch_status)
-    VALUES (?, ?, ?, ?, ?)
-  `;
-  const values = [turmaId, alunoId, data, hora, status];
+  try {
+    const chamada = await prisma.cp_chamadas.create({
+      data: {
+        cp_ch_turma_id: parseInt(turmaId),
+        cp_ch_aluno_id: parseInt(alunoId),
+        cp_ch_data: new Date(data),
+        cp_ch_presente: status === 'presente'
+      }
+    });
 
-  // Log da consulta e dos valores
-  console.log('Query:', query);
-  console.log('Values:', values);
-
-  // Execução da consulta
-  db.query(query, values, (err, result) => {
-    if (err) {
-      console.error('Erro ao salvar chamada:', err);
-      res.status(500).send({ msg: 'Erro ao salvar chamada' });
-    } else {
-      console.log('Resultado da inserção:', result);
-      res.send({
-        msg: 'Chamada salva com sucesso',
-        dadosSalvos: { turmaId, alunoId, data, hora, status }
-      });
-    }
-  });
+    console.log('Resultado da inserção:', chamada);
+    res.send({
+      msg: 'Chamada salva com sucesso',
+      dadosSalvos: { turmaId, alunoId, data, hora, status }
+    });
+  } catch (err) {
+    console.error('Erro ao salvar chamada:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao salvar chamada' });
+  }
 });
 
+// Buscar histórico de chamadas de uma turma
+app.get('/chamadas/turma/:turmaId', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
 
-// Rota para buscar histórico de chamadas de uma turma
-app.get('/chamadas/turma/:turmaId', (req, res) => {
-  const turmaId = req.params.turmaId;
+  try {
+    const chamadas = await prisma.cp_chamadas.findMany({
+      where: { cp_ch_turma_id: turmaId },
+      include: {
+        aluno: {
+          select: { cp_nome: true }
+        }
+      },
+      orderBy: [
+        { cp_ch_data: 'desc' }
+      ]
+    });
 
-  const query = `
-    SELECT c.cp_ch_id, c.cp_ch_data, c.cp_ch_hora, u.cp_nome AS cp_nome_aluno, c.cp_ch_status
-    FROM cp_chamadas c
-    JOIN cp_usuarios u ON c.cp_ch_aluno_id = u.cp_id
-    WHERE c.cp_ch_turma_id = ?
-    ORDER BY c.cp_ch_data DESC, c.cp_ch_hora DESC
-  `;
+    const chamadasFormatted = chamadas.map(chamada => ({
+      cp_ch_id: chamada.cp_ch_id,
+      cp_ch_data: chamada.cp_ch_data,
+      cp_nome_aluno: chamada.aluno.cp_nome,
+      cp_ch_status: chamada.cp_ch_presente ? 'presente' : 'ausente'
+    }));
 
-  db.query(query, [turmaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar histórico de chamadas:', err);
-      res.status(500).send({ msg: 'Erro ao buscar histórico de chamadas' });
-    } else {
-      res.send(result);
-    }
-  });
+    res.send(chamadasFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar histórico de chamadas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar histórico de chamadas' });
+  }
 });
 
+// Buscar turmas com alunos
+app.get('/turmasComAlunos', async (req, res) => {
+  try {
+    const turmas = await prisma.cp_turmas.findMany({
+      where: {
+        alunos: {
+          some: {
+            cp_excluido: 0
+          }
+        }
+      },
+      include: {
+        professor: {
+          select: { cp_nome: true }
+        },
+        escola: {
+          select: { cp_ec_nome: true }
+        }
+      },
+      distinct: ['cp_tr_id']
+    });
 
+    const turmasFormatted = turmas.map(turma => ({
+      ...turma,
+      nomeDoProfessor: turma.professor.cp_nome,
+      nomeDaEscola: turma.escola.cp_ec_nome
+    }));
 
-// Rota para buscar todas as turmas com alunos
-app.get('/turmasComAlunos', (req, res) => {
-  const query = `
-    SELECT DISTINCT t.*, u.cp_nome AS nomeDoProfessor, e.cp_ec_nome AS nomeDaEscola
-    FROM cp_turmas t
-    JOIN cp_usuarios u ON t.cp_tr_id_professor = u.cp_id
-    JOIN cp_escolas e ON t.cp_tr_id_escola = e.cp_ec_id
-    JOIN cp_usuarios alunos ON alunos.cp_turma_id = t.cp_tr_id
-    WHERE alunos.cp_excluido = 0
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar as turmas:', err);
-      res.status(500).send({ msg: 'Erro ao buscar as turmas' });
-    } else {
-      res.send(result);
-    }
-  });
+    res.send(turmasFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar as turmas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar as turmas' });
+  }
 });
 
-// Atualizar chamada específica
-app.put('/chamadas/:id', (req, res) => {
-  const chamadaId = req.params.id;
+// Atualizar chamada
+app.put('/chamadas/:id', async (req, res) => {
+  const chamadaId = parseInt(req.params.id);
   const { data, hora, status } = req.body;
 
   if (!status || typeof status !== 'string') {
     return res.status(400).json({ error: 'Status inválido.' });
   }
 
-  const updatedChamada = {
-    cp_ch_data: data,
-    cp_ch_hora: hora,
-    cp_ch_status: status
-  };
-
-  db.query('UPDATE cp_chamadas SET ? WHERE cp_ch_id = ?', [updatedChamada, chamadaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao atualizar chamada:', err);
-      res.status(500).json({ error: 'Erro ao atualizar chamada.' });
-      return;
-    }
-
-    if (result.affectedRows === 0) {
-      res.status(404).json({ error: 'Chamada não encontrada.' });
-      return;
-    }
+  try {
+    await prisma.cp_chamadas.update({
+      where: { cp_ch_id: chamadaId },
+      data: {
+        cp_ch_data: new Date(data),
+        cp_ch_presente: status === 'presente'
+      }
+    });
 
     res.status(200).json({ message: 'Chamada atualizada com sucesso.' });
-  });
+  } catch (err) {
+    console.error('Erro ao atualizar chamada:', err);
+    logError(err);
+    if (err.code === 'P2025') {
+      res.status(404).json({ error: 'Chamada não encontrada.' });
+    } else {
+      res.status(500).json({ error: 'Erro ao atualizar chamada.' });
+    }
+  }
 });
 
-
-
-// Deletar chamada específica
+// Deletar chamada
 app.delete('/chamadas/:id', async (req, res) => {
-  const chamadaId = req.params.id;
+  const chamadaId = parseInt(req.params.id);
 
-  const query = 'DELETE FROM cp_chamadas WHERE cp_ch_id = ?';
-
-  db.query(query, [chamadaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao deletar chamada:', err);
-      res.status(500).json({ error: 'Erro ao deletar chamada.' });
-    } else {
-      res.json({ message: 'Chamada deletada com sucesso.' });
-    }
-  });
-});
-
-
-const materialStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'materialdeaula'); // Diretório onde os arquivos serão armazenados
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
-const materialUpload = multer({ storage: materialStorage });
-
-// Adicione essa linha para servir arquivos estáticos da pasta 'materialdeaula'
-app.use('/materialdeaula', express.static(path.join(__dirname, 'materialdeaula')));
-
-// Rota para salvar resumo de aula com upload de material
-app.post('/resumos', materialUpload.single('arquivo'), (req, res) => {
-  const { turmaId, resumo, data, hora, aula, link, linkYoutube } = req.body;
-  const arquivo = req.file ? req.file.filename : null;
-
-  const query = `
-    INSERT INTO cp_resumos (cp_res_turma_id, cp_res_data, cp_res_hora, cp_res_resumo, cp_res_arquivo, cp_res_aula, cp_res_link, cp_res_link_youtube)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  const values = [turmaId, data, hora, resumo, arquivo, aula, link, linkYoutube];
-
-  db.query(query, values, (err, result) => {
-    if (err) {
-      console.error("Erro ao inserir resumo no banco de dados:", err);
-      return res.status(500).json({ error: 'Erro ao salvar resumo' });
-    }
-
-    res.status(201).json({ message: 'Resumo salvo com sucesso' });
-  });
-});
-
-
-//Rota para buscar resumos com base na data e na turma
-app.get('/resumos/:data/:turmaId', (req, res) => {
-  const { data, turmaId } = req.params;
-
-  const query = `
-    SELECT cp_res_id, cp_res_turma_id, cp_res_data, cp_res_hora, cp_res_resumo, cp_res_arquivo, cp_res_aula, cp_res_link, cp_res_link_youtube
-    FROM cp_resumos
-    WHERE cp_res_data = ? AND cp_res_turma_id = ?
-  `;
-  const values = [data, turmaId];
-
-  db.query(query, values, (err, results) => {
-    if (err) {
-      console.error("Erro ao buscar resumos no banco de dados:", err);
-      return res.status(500).json({ error: 'Erro ao buscar resumos' });
-    }
-
-    const resumos = results.map(resumo => ({
-      ...resumo,
-      cp_res_arquivo: resumo.cp_res_arquivo ? `https://testes.cursoviolaocristao.com.br/materialdeaula/${resumo.cp_res_arquivo}` : null
-    }));
-
-    res.status(200).json(resumos);
-  });
-});
-
-
-app.get('/resumos/:turmaId', (req, res) => {
-  const { turmaId } = req.params;
-
-  const query = `
-    SELECT cp_res_id, cp_res_turma_id, cp_res_data, cp_res_hora, cp_res_resumo, cp_res_arquivo, cp_res_aula, cp_res_link, cp_res_link_youtube
-    FROM cp_resumos
-    WHERE cp_res_turma_id = ?
-    ORDER BY cp_res_data DESC
-  `;
-  const values = [turmaId];
-
-  db.query(query, values, (err, results) => {
-    if (err) {
-      console.error("Erro ao buscar resumos no banco de dados:", err);
-      return res.status(500).json({ error: 'Erro ao buscar resumos' });
-    }
-
-    const resumos = results.map(resumo => ({
-      ...resumo,
-      cp_res_arquivo: resumo.cp_res_arquivo ? `https://testes.cursoviolaocristao.com.br/materialdeaula/${resumo.cp_res_arquivo}` : null
-    }));
-
-    res.status(200).json(resumos);
-  });
-});
-
-
-/* edição e exclusão dos remusos */
-
-// app.put('/resumos/:id', materialUpload.single('arquivo'), async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { resumo, aula, link, linkYoutube } = req.body;
-//     const arquivo = req.file ? req.file.filename : null;
-
-//     // Construir a consulta dinamicamente
-//     let query = `
-//       UPDATE cp_resumos 
-//       SET cp_res_resumo = ?, cp_res_aula = ?, cp_res_link = ?, cp_res_link_youtube = ?
-//     `;
-//     const values = [resumo, aula, link, linkYoutube];
-
-//     // Se houver um novo arquivo, adicionar à consulta
-//     if (arquivo) {
-//       query += `, cp_res_arquivo = ?`;
-//       values.push(arquivo);
-//     }
-
-//     query += ` WHERE cp_res_id = ?`;
-//     values.push(id);
-
-//     // Usando uma função `promisified` para lidar com a query
-//     await db.query(query, values);
-
-//     res.status(200).json({ message: 'Resumo editado com sucesso' });
-//   } catch (err) {
-//     console.error("Erro ao editar resumo no banco de dados:", err);
-//     res.status(500).json({ error: 'Erro ao editar resumo' });
-//   }
-// });
-
-app.put('/resumos/:id', materialUpload.single('arquivo'), async (req, res) => {
   try {
-    const { id } = req.params;
-    const { resumo, aula, link, linkYoutube } = req.body;
-    const arquivo = req.file ? req.file.filename : null;
+    await prisma.cp_chamadas.delete({
+      where: { cp_ch_id: chamadaId }
+    });
 
-    let query = `
-      UPDATE cp_resumos 
-      SET cp_res_resumo = ?, cp_res_aula = ?, cp_res_link = ?, cp_res_link_youtube = ?
-    `;
-    const values = [resumo, aula, link, linkYoutube];
-
-    if (arquivo) {
-      query += `, cp_res_arquivo = ?`;
-      values.push(arquivo);
-    }
-
-    query += ` WHERE cp_res_id = ?`;
-    values.push(id);
-
-    await db.query(query, values);
-
-    res.status(200).json({ message: 'Resumo editado com sucesso' });
+    res.json({ message: 'Chamada deletada com sucesso.' });
   } catch (err) {
-    console.error("Erro ao editar resumo no banco de dados:", err);
-    res.status(500).json({ error: 'Erro ao editar resumo' });
+    console.error('Erro ao deletar chamada:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao deletar chamada.' });
   }
 });
 
+/* FIM CHAMADAS */
 
-app.delete('/resumos/:id', (req, res) => {
-  const { id } = req.params;
+/* MATRÍCULAS */
 
-  const query = `
-    DELETE FROM cp_resumos WHERE cp_res_id = ?
-  `;
-  const values = [id];
-
-  db.query(query, values, (err, result) => {
-    if (err) {
-      console.error("Erro ao excluir resumo no banco de dados:", err);
-      return res.status(500).json({ error: 'Erro ao excluir resumo' });
-    }
-
-    res.status(200).json({ message: 'Resumo excluído com sucesso' });
-  });
-});
-
-
-
-// rotas material
-
-const URL_MATERIAL_AULA = 'https://testes.cursoviolaocristao.com.br/materialdeaula/'
-
-app.get('/materiais/:turmaID', async (req, res) => {
-  const turmaID = req.params.turmaID;
-
+// Buscar usuários para matrícula (tipo 5 - alunos)
+app.get('/buscarusermatricula', async (req, res) => {
   try {
-    console.log(`Buscando materiais para a turmaID: ${turmaID}`);
-
-    // Consulta SQL para selecionar resumos com o turmaID especificado, incluindo os links
-    db.query(
-      'SELECT cp_res_id, cp_res_turma_id, cp_res_data, cp_res_hora, cp_res_resumo, cp_res_arquivo, cp_res_aula, cp_res_link, cp_res_link_youtube FROM cp_resumos WHERE cp_res_turma_id = ?',
-      [turmaID],
-      (error, results) => {
-        if (error) {
-          console.error('Erro ao buscar resumos:', error);
-          logError(error);
-          return res.status(500).send('Erro ao buscar resumos');
-        }
-
-        console.log(`Materiais encontrados: ${JSON.stringify(results)}`);
-
-        res.json(results);
-      }
-    );
-  } catch (error) {
-    console.error('Erro ao buscar resumos:', error);
-    logError(error);
-    res.status(500).send('Erro ao buscar resumos');
-  }
-});
-
-
-// Rota para obter os dados dos usuários
-app.get('/certificado/matricula', (req, res) => {
-  const query = 'SELECT cp_mt_id AS id, cp_mt_nome_usuario AS nome, cp_mt_curso AS curso, cp_mt_valor_curso AS cargaHoraria FROM cp_matriculas WHERE cp_mt_excluido = 0';
-
-  db.query(query, (err, results) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    res.json(results);
-  });
-});
-
-
-
-// Rota materiais treinamento
-
-// Configurações do multer para rota de treinamento
-const treinamentoStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'treinamento/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const uploadTreinamento = multer({ storage: treinamentoStorage });
-
-app.get('/materiais', (req, res) => {
-  const query = 'SELECT * FROM cp_mat_materiais';
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar materiais:', err);
-      res.status(500).json({ error: 'Erro ao buscar materiais' });
-    } else {
-      const materiais = result.map(material => ({
-        ...material,
-        cp_mat_miniatura: material.cp_mat_miniatura ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_miniatura}` : null,
-        cp_mat_arquivoPdf: material.cp_mat_arquivoPdf ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_arquivoPdf}` : null,
-        cp_mat_extra_pdf2: material.cp_mat_extra_pdf2 ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_pdf2}` : null,
-        cp_mat_extra_pdf3: material.cp_mat_extra_pdf3 ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_pdf3}` : null,
-        cp_mat_permitirDownload: material.cp_mat_permitirDownload, 
-        cp_mat_extra_codigos: material.cp_mat_extra_codigos || "",
-      }));
-      console.log('Materiais retornados do banco de dados:', materiais);
-      res.json(materiais);
-    }
-  });
-});
-
-app.post('/materiais', uploadTreinamento.fields([
-  { name: 'miniatura', maxCount: 1 },
-  { name: 'arquivoPdf1', maxCount: 1 },
-  { name: 'arquivoPdf2', maxCount: 1 },
-  { name: 'arquivoPdf3', maxCount: 1 }
-]), async (req, res) => {
-  const { titulo, descricao, data, linkYoutube, categorias, permitirDownload, codigos } = req.body;
-  const miniatura = req.files['miniatura'] ? req.files['miniatura'][0].path : null;
-  const arquivoPdf1 = req.files['arquivoPdf1'] ? req.files['arquivoPdf1'][0].path : null;
-  const arquivoPdf2 = req.files['arquivoPdf2'] ? req.files['arquivoPdf2'][0].path : null;
-  const arquivoPdf3 = req.files['arquivoPdf3'] ? req.files['arquivoPdf3'][0].path : null;
-
-  try {
-    await db.query(
-      'INSERT INTO cp_mat_materiais (cp_mat_titulo, cp_mat_descricao, cp_mat_extra_date, cp_mat_extra_categories, cp_mat_linkYoutube, cp_mat_miniatura, cp_mat_arquivoPdf, cp_mat_extra_pdf2, cp_mat_extra_pdf3, cp_mat_permitirDownload, cp_mat_extra_codigos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [titulo, descricao, data, categorias, linkYoutube, miniatura, arquivoPdf1, arquivoPdf2, arquivoPdf3, permitirDownload || 0, codigos]
-
-    );
-    res.status(201).json({ message: 'Material cadastrado com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete('/materiais/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await db.query('DELETE FROM cp_mat_materiais WHERE cp_mat_id = ?', [id]);
-    res.status(200).json({ message: 'Material excluído com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// rota de edição matreiais treinamento
-
-app.put(
-  '/materiais/:id',
-  uploadTreinamento.fields([
-    { name: 'miniatura', maxCount: 1 },
-    { name: 'arquivoPdf1', maxCount: 1 },
-    { name: 'arquivoPdf2', maxCount: 1 },
-    { name: 'arquivoPdf3', maxCount: 1 },
-  ]),
-  async (req, res) => {
-    const { id } = req.params;
-    const { titulo, descricao, data, linkYoutube, categorias, permitirDownload, codigos } = req.body;
-
-    const miniatura = req.files['miniatura']
-      ? `treinamento/${req.files['miniatura'][0].filename}`
-      : null;
-    const arquivoPdf1 = req.files['arquivoPdf1']
-      ? `treinamento/${req.files['arquivoPdf1'][0].filename}`
-      : null;
-    const arquivoPdf2 = req.files['arquivoPdf2']
-      ? `treinamento/${req.files['arquivoPdf2'][0].filename}`
-      : null;
-    const arquivoPdf3 = req.files['arquivoPdf3']
-      ? `treinamento/${req.files['arquivoPdf3'][0].filename}`
-      : null;
-
-    try {
-      const query = `
-  UPDATE cp_mat_materiais
-  SET 
-    cp_mat_titulo = ?,
-    cp_mat_descricao = ?,
-    cp_mat_extra_date = ?,
-    cp_mat_extra_categories = ?,
-    cp_mat_linkYoutube = ?,
-    cp_mat_miniatura = COALESCE(?, cp_mat_miniatura),
-    cp_mat_arquivoPdf = COALESCE(?, cp_mat_arquivoPdf),
-    cp_mat_extra_pdf2 = COALESCE(?, cp_mat_extra_pdf2),
-    cp_mat_extra_pdf3 = COALESCE(?, cp_mat_extra_pdf3),
-    cp_mat_permitirDownload = ?,
-    cp_mat_extra_codigos = ?
-  WHERE cp_mat_id = ?`;
-
-await db.query(query, [
-  titulo,
-  descricao,
-  data,
-  categorias,
-  linkYoutube,
-  miniatura,
-  arquivoPdf1,
-  arquivoPdf2,
-  arquivoPdf3,
-  permitirDownload || 0,
-  codigos,
-  id,
-]);
-
-
-      res.status(200).json({ message: 'Material atualizado com sucesso' });
-    } catch (err) {
-      console.error('Erro ao atualizar material:', err);
-      res.status(500).json({ error: 'Erro ao atualizar material' });
-    }
-  }
-);
-
-
-
-// Servindo arquivos estáticos na pasta 'treinamento'
-app.use('/treinamento', express.static(path.join(__dirname, 'treinamento')));
-
-// Rota para baixar arquivos através de um proxy
-app.get('/proxy-download', async (req, res) => {
-  const filePath = req.query.url; // Caminho do arquivo passado como query param (apenas o caminho dentro da pasta 'treinamento')
-  const fullPath = path.join(__dirname, filePath); // Caminho completo no servidor
-
-  try {
-    // Verifica se o arquivo existe
-    if (fs.existsSync(fullPath)) {
-      // Define o cabeçalho para forçar o download
-      res.setHeader('Content-Disposition', `attachment; filename=${path.basename(fullPath)}`);
-      // Envia o arquivo como resposta
-      res.download(fullPath);
-    } else {
-      res.status(404).json({ error: 'Arquivo não encontrado' });
-    }
-  } catch (error) {
-    console.error('Erro ao baixar o arquivo:', error);
-    res.status(500).json({ error: 'Erro ao baixar o arquivo' });
-  }
-});
-
-
-
-
-
-// INICIO REGISTRAR VIZUALIZAÇÃO //
-
-// Rota para registrar ou atualizar a visualização de um áudio por um usuário
-app.post('/registrar-visualizacao', (req, res) => {
-  const { userId, audioId } = req.body;
-
-  // Verifica se os dados necessários foram fornecidos
-  if (!userId || !audioId) {
-    res.status(400).json({ error: 'É necessário fornecer userId e audioId' });
-    return;
-  }
-
-  // Verifica se já existe um registro para userId e audioId
-  db.query('SELECT * FROM cp_vizu_aud_usuarios WHERE cp_id_usuario = ? AND cp_id_audio = ?', [userId, audioId], (err, results) => {
-    if (err) {
-      console.error('Erro ao verificar registro existente:', err);
-      res.status(500).json({ error: 'Erro ao verificar registro existente' });
-      return;
-    }
-
-    if (results.length > 0) {
-      // Já existe um registro, então atualiza o existente
-      db.query('UPDATE cp_vizu_aud_usuarios SET data_visualizacao = CURRENT_TIMESTAMP WHERE cp_id_usuario = ? AND cp_id_audio = ?', [userId, audioId], (err, result) => {
-        if (err) {
-          console.error('Erro ao atualizar visualização de áudio:', err);
-          res.status(500).json({ error: 'Erro ao atualizar visualização de áudio' });
-          return;
-        }
-        res.status(200).json({ message: 'Visualização de áudio atualizada com sucesso' });
-      });
-    } else {
-      // Não existe um registro, então insere um novo
-      db.query('INSERT INTO cp_vizu_aud_usuarios (cp_id_usuario, cp_id_audio) VALUES (?, ?)', [userId, audioId], (err, result) => {
-        if (err) {
-          console.error('Erro ao registrar visualização de áudio:', err);
-          res.status(500).json({ error: 'Erro ao registrar visualização de áudio' });
-          return;
-        }
-        res.status(200).json({ message: 'Visualização de áudio registrada com sucesso' });
-      });
-    }
-  });
-});
-
-// Rota para buscar os áudios marcados como ouvidos pelo usuário
-app.get('/audios-marcados/:userId', (req, res) => {
-  const userId = req.params.userId;
-
-  // Consulta SQL para buscar os cp_audio_id marcados como ouvidos pelo usuário
-  db.query('SELECT cp_id_audio FROM cp_vizu_aud_usuarios WHERE cp_id_usuario = ?', [userId], (err, results) => {
-    if (err) {
-      console.error('Erro ao buscar áudios marcados como ouvidos:', err);
-      res.status(500).json({ error: 'Erro ao buscar áudios marcados como ouvidos' });
-      return;
-    }
-
-    // Extrai os cp_audio_id dos resultados
-    const audiosMarcados = results.map(row => row.cp_id_audio);
-    res.status(200).json(audiosMarcados);
-  });
-});
-
-
-// FIM CADASTRO CURSO // 
-
-// MATERIAL EXTRA //
-
-// Configuração do multer para upload de arquivos
-const materialExtraStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'materialExtra/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const uploadMaterialExtra = multer({ storage: materialExtraStorage });
-
-// Rota para buscar todas as turmas com alunos
-app.get('/material-extra', (req, res) => {
-  const query = 'SELECT * FROM cp_mat_extra';
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar materiais:', err);
-      res.status(500).json({ error: 'Erro ao buscar materiais' });
-    } else {
-      const materiais = result.map(material => ({
-        ...material,
-        cp_mat_extra_thumbnail: material.cp_mat_extra_thumbnail ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_thumbnail}` : null,
-        cp_mat_extra_pdf1: material.cp_mat_extra_pdf1 ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_pdf1}` : null,
-        cp_mat_extra_pdf2: material.cp_mat_extra_pdf2 ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_pdf2}` : null,
-        cp_mat_extra_pdf3: material.cp_mat_extra_pdf3 ? `https://testes.cursoviolaocristao.com.br/${material.cp_mat_extra_pdf3}` : null,
-        cp_mat_extra_permitirDownload: material.cp_mat_extra_permitirDownload
-      }));
-
-      res.json(materiais);
-    }
-  });
-});
-
-
-app.post('/material-extra', uploadMaterialExtra.fields([
-  { name: 'thumbnail', maxCount: 1 },
-  { name: 'pdf1', maxCount: 1 },
-  { name: 'pdf2', maxCount: 1 },
-  { name: 'pdf3', maxCount: 1 }
-]), async (req, res) => {
-  console.log("Arquivos recebidos:", req.files); // Adicione este log
-  console.log("Dados recebidos:", req.body); // Adicione este log
-
-  const { title, description, date, youtube_url, categories, permitirDownload, codigos } = req.body;
-
-  const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].path : null;
-  const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].path : null;
-  const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].path : null;
-  const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].path : null;
-
-  try {
-    await db.query(
-      'INSERT INTO cp_mat_extra (cp_mat_extra_thumbnail, cp_mat_extra_title, cp_mat_extra_description, cp_mat_extra_date, cp_mat_extra_youtube_url, cp_mat_extra_pdf1, cp_mat_extra_pdf2, cp_mat_extra_pdf3, cp_mat_extra_categories, cp_mat_extra_permitirDownload, cp_mat_extra_codigos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [thumbnail, title, description, date, youtube_url, pdf1, pdf2, pdf3, categories, permitirDownload || 0, codigos]
-    );
-    res.status(201).json({ message: 'Material cadastrado com sucesso' });
-  } catch (err) {
-    console.error('Erro ao cadastrar material:', err);
-    res.status(500).json({ error: 'Erro ao cadastrar material' });
-  }
-});
-
-
-app.put(
-  '/material-extra/:id',
-  uploadMaterialExtra.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'pdf1', maxCount: 1 },
-    { name: 'pdf2', maxCount: 1 },
-    { name: 'pdf3', maxCount: 1 },
-  ]),
-  async (req, res) => {
-    const { id } = req.params; // ID do material a ser atualizado
-    console.log("Arquivos recebidos:", req.files); // Adicione este log para debug
-    console.log("Dados recebidos:", req.body); // Adicione este log para debug
-
-    const { title, description, date, youtube_url, categories, permitirDownload, codigos } = req.body;
-
-    const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].path : null;
-    const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].path : null;
-    const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].path : null;
-    const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].path : null;
-
-    try {
-      // Atualizar os dados no banco de dados
-      await db.query(
-        `UPDATE cp_mat_extra
-         SET cp_mat_extra_thumbnail = COALESCE(?, cp_mat_extra_thumbnail),
-             cp_mat_extra_title = ?,
-             cp_mat_extra_description = ?,
-             cp_mat_extra_date = ?,
-             cp_mat_extra_youtube_url = ?,
-             cp_mat_extra_pdf1 = COALESCE(?, cp_mat_extra_pdf1),
-             cp_mat_extra_pdf2 = COALESCE(?, cp_mat_extra_pdf2),
-             cp_mat_extra_pdf3 = COALESCE(?, cp_mat_extra_pdf3),
-             cp_mat_extra_categories = ?,
-             cp_mat_extra_permitirDownload = ?,
-             cp_mat_extra_codigos = ?
-         WHERE cp_mat_extra_id = ?`,
-        [
-          thumbnail,
-          title,
-          description,
-          date,
-          youtube_url,
-          pdf1,
-          pdf2,
-          pdf3,
-          categories,
-          permitirDownload || 0,
-          codigos,
-          id,
-        ]
-      );
-
-      res.status(200).json({ message: 'Material atualizado com sucesso' });
-    } catch (err) {
-      console.error('Erro ao atualizar material:', err);
-      res.status(500).json({ error: 'Erro ao atualizar material' });
-    }
-  }
-);
-
-
-
-app.delete('/material-extra/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await db.query('DELETE FROM cp_mat_extra WHERE cp_mat_extra_id = ?', [id]);
-    res.status(200).json({ message: 'Material excluído com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir material' });
-  }
-});
-
-
-
-// FIM MATERIAL EXTRA //
-
-// INICIO MATRICULA //
-
-// Buscar todos os usuários do tipo cp_tipo_user = 5 para a matrícula
-// Para listar todos os usuários
-app.get('/buscarusermatricula', (req, res) => {
-  const buscarUsuariosQuery = `
-    SELECT cp_id, cp_nome, cp_cpf, cp_datanascimento, cp_profissao, 
-           cp_estadocivil, cp_end_cidade_estado, cp_end_rua, cp_end_num, 
-           cp_whatsapp, cp_telefone, cp_email, cp_escola_id
-    FROM cp_usuarios 
-    WHERE cp_tipo_user = 5 AND cp_excluido = 0
-    ORDER BY cp_nome ASC
-  `;
-
-  db.query(buscarUsuariosQuery, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar usuários:', err);
-      res.status(500).send({ msg: 'Erro no servidor', error: err.message });
-    } else if (result.length === 0) {
+    const usuarios = await prisma.cp_usuarios.findMany({
+      where: {
+        cp_tipo_user: 5,
+        cp_excluido: 0
+      },
+      select: {
+        cp_id: true,
+        cp_nome: true,
+        cp_cpf: true,
+        cp_datanascimento: true,
+        cp_profissao: true,
+        cp_estadocivil: true,
+        cp_end_cidade_estado: true,
+        cp_end_rua: true,
+        cp_end_num: true,
+        cp_whatsapp: true,
+        cp_telefone: true,
+        cp_email: true,
+        cp_escola_id: true
+      },
+      orderBy: { cp_nome: 'asc' }
+    });
+
+    if (usuarios.length === 0) {
       res.status(404).send({ msg: 'Nenhum usuário encontrado' });
     } else {
-      res.send(result);
+      res.send(usuarios);
     }
-  });
-});
-
-
-// Buscar um usuário do tipo cp_tipo_user = 5 para a matrícula
-app.get('/buscarusermatricula/:id', (req, res) => {
-  const userId = req.params.id;
-  const buscarUsuarioQuery = 'SELECT * FROM cp_usuarios WHERE cp_tipo_user = 5 AND cp_excluido = 0 AND cp_id = ? LIMIT 1';
-
-  db.query(buscarUsuarioQuery, [userId], (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else if (result.length === 0) {
-      res.status(404).send({ msg: 'Usuário não encontrado' });
-    } else {
-      res.send(result[0]); // Retorna apenas o primeiro usuário encontrado
-    }
-  });
-});
-
-// Buscar todas as matrículas
-// Rota para buscar as matrículas
-app.get('/relatoriomatricula', (req, res) => {
-  const query = 'SELECT * FROM cp_matriculas'; // Consulta SQL para selecionar todas as matrículas
-  db.query(query, (err, result) => {
-    if (err) {
-      res.status(500).send({ error: 'Erro ao buscar matrículas' });
-      return;
-    }
-    res.send(result); // Retorna as matrículas encontradas
-  });
-});
-
-// Buscar CPF do usuário com base no ID
-app.get('/buscarcpfusuario/:id', (req, res) => {
-  const { id } = req.params;
-  const buscarCpfUsuarioQuery = 'SELECT cp_cpf FROM cp_usuarios WHERE cp_id = ?';
-
-  db.query(buscarCpfUsuarioQuery, [id], (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else if (result.length === 0) {
-      res.status(404).send({ msg: 'CPF do usuário não encontrado' });
-    } else {
-      res.send(result[0]);
-    }
-  });
-});
-
-
-app.post('/cadastrar-matricula', async (req, res) => {
-  const {
-    cursoId: cp_mt_curso, usuarioId: cp_mt_usuario, cpfUsuario: cp_mt_cadastro_usuario, valorCurso: cp_mt_valor_curso,
-    numeroParcelas: cp_mt_quantas_parcelas, status: cp_status_matricula, escolaId: cp_mt_escola,
-    escolaridade: cp_mt_escolaridade, localNascimento: cp_mt_local_nascimento, redeSocial: cp_mt_rede_social,
-    nomePai: cp_mt_nome_pai, contatoPai: cp_mt_contato_pai, nomeMae: cp_mt_nome_mae, contatoMae: cp_mt_contato_mae,
-    horarioInicio: cp_mt_horario_inicio, horarioFim: cp_mt_horario_fim, nivelIdioma: cp_mt_nivel,
-    primeiraDataPagamento: cp_mt_primeira_parcela, nomeUsuario: cp_mt_nome_usuario,
-    tipoPagamento: cp_mt_tipo_pagamento, diasSemana: cp_mt_dias_semana, valorMensalidade: cp_mt_valor_mensalidade
-  } = req.body;
-
-  const newMatricula = {
-    cp_mt_curso, cp_mt_usuario, cp_mt_cadastro_usuario, cp_mt_valor_curso, cp_mt_quantas_parcelas,
-    cp_mt_parcelas_pagas: 0, cp_status_matricula, cp_mt_escola, cp_mt_escolaridade, cp_mt_nivel,
-    cp_mt_local_nascimento, cp_mt_rede_social, cp_mt_nome_pai, cp_mt_contato_pai, cp_mt_nome_mae,
-    cp_mt_contato_mae, cp_mt_horario_inicio, cp_mt_horario_fim, cp_mt_excluido: 0,
-    cp_mt_primeira_parcela, cp_mt_nome_usuario, cp_mt_tipo_pagamento, cp_mt_dias_semana, cp_mt_valor_mensalidade
-  };
-
-  try {
-    db.beginTransaction(err => {
-      if (err) return res.status(500).send({ msg: 'Erro ao cadastrar matrícula' });
-
-      db.query('INSERT INTO cp_matriculas SET ?', newMatricula, (err, result) => {
-        if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar matrícula' }));
-
-        const matriculaId = result.insertId;
-        if (cp_mt_tipo_pagamento === "parcelado" && cp_mt_quantas_parcelas > 0) {
-        const valorParcela = parseFloat((cp_mt_valor_curso / cp_mt_quantas_parcelas).toFixed(2));
-        let data = new Date(cp_mt_primeira_parcela);
-        const parcelas = [];
-
-        for (let i = 1; i <= cp_mt_quantas_parcelas; i++) {
-            parcelas.push([matriculaId, new Date(data), 'à vencer', valorParcela]);
-            data.setMonth(data.getMonth() + 1);
-        }
-
-        db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
-        if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
-
-            db.commit(err => {
-              if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
-              res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
-            });
-          });
-        } else if (cp_mt_tipo_pagamento === "mensalidade" && cp_mt_valor_mensalidade > 0) {
-          let data = new Date(cp_mt_primeira_parcela);
-          const mensalidades = [];
-
-          for (let i = 1; i <= 12; i++) {
-            mensalidades.push([matriculaId, new Date(data), 'à vencer', cp_mt_valor_mensalidade]);
-            data.setMonth(data.getMonth() + 1);
-          }
-
-          db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [mensalidades], err => {
-            if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar mensalidades' }));
-
-            db.commit(err => {
-              if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
-              res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
-            });
-          });
-        } else {
-          db.commit(err => {
-            if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir matrícula' }));
-            res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId });
-          });
-        }
-
-      });
-    });
-  } catch (error) {
-    res.status(500).send({ msg: 'Erro ao cadastrar matrícula' });
+  } catch (err) {
+    console.error('Erro ao buscar usuários:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor', error: err.message });
   }
 });
 
+// Buscar usuário específico para matrícula
+app.get('/buscarusermatricula/:id', async (req, res) => {
+  const userId = parseInt(req.params.id);
 
+  try {
+    const usuario = await prisma.cp_usuarios.findFirst({
+      where: {
+        cp_tipo_user: 5,
+        cp_excluido: 0,
+        cp_id: userId
+      }
+    });
+
+    if (usuario) {
+      res.send(usuario);
+    } else {
+      res.status(404).send({ msg: 'Usuário não encontrado' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar usuário:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
 
 // Buscar todas as matrículas
-app.get('/matriculas', (req, res) => {
-  const buscarMatriculasQuery = 'SELECT * FROM cp_matriculas';
-
-  db.query(buscarMatriculasQuery, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar matrículas:', err);
-      res.status(500).send({ msg: 'Erro ao buscar matrículas' });
-    } else {
-      res.send(result);
-    }
-  });
+app.get('/matriculas', async (req, res) => {
+  try {
+    const matriculas = await prisma.cp_matriculas.findMany();
+    res.send(matriculas);
+  } catch (err) {
+    console.error('Erro ao buscar matrículas:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar matrículas' });
+  }
 });
 
-// Buscar uma matrícula específica pelo ID
-app.get('/matriculas/:matriculaId', (req, res) => {
-  const matriculaId = req.params.matriculaId;
-  const buscarMatriculaQuery = 'SELECT * FROM cp_matriculas WHERE cp_mt_id = ?';
+// Relatório de matrículas
+app.get('/relatoriomatricula', async (req, res) => {
+  try {
+    const matriculas = await prisma.cp_matriculas.findMany();
+    res.send(matriculas);
+  } catch (err) {
+    console.error('Erro ao buscar matrículas:', err);
+    logError(err);
+    res.status(500).send({ error: 'Erro ao buscar matrículas' });
+  }
+});
 
-  db.query(buscarMatriculaQuery, [matriculaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar matrícula:', err);
-      res.status(500).send({ msg: 'Erro ao buscar matrícula' });
-    } else if (result.length === 0) {
+// Buscar CPF do usuário
+app.get('/buscarcpfusuario/:id', async (req, res) => {
+  const userId = parseInt(req.params.id);
+
+  try {
+    const usuario = await prisma.cp_usuarios.findUnique({
+      where: { cp_id: userId },
+      select: { cp_cpf: true }
+    });
+
+    if (usuario) {
+      res.send(usuario);
+    } else {
+      res.status(404).send({ msg: 'CPF do usuário não encontrado' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar CPF:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+// Buscar matrícula específica
+app.get('/matriculas/:matriculaId', async (req, res) => {
+  const matriculaId = parseInt(req.params.matriculaId);
+
+  try {
+    const matricula = await prisma.cp_matriculas.findUnique({
+      where: { cp_mt_id: matriculaId }
+    });
+
+    if (matricula) {
+      res.send(matricula);
+    } else {
       res.status(404).send({ msg: 'Matrícula não encontrada' });
-    } else {
-      res.send(result[0]);
     }
-  });
+  } catch (err) {
+    console.error('Erro ao buscar matrícula:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar matrícula' });
+  }
 });
 
-// app.get('/matricula/:userId', (req, res) => {
-//   const userId = req.params.userId;
-//   db.query('SELECT cp_nome, cp_cpf FROM cp_usuarios WHERE cp_id = ?', userId, (err, result) => {
-//     if (err) {
-//       res.status(500).send({ msg: 'Erro ao buscar dados do usuário' });
-//     } else if (result.length > 0) {
-//       const userData = {
-//         nomeUsuario: result[0].cp_nome,
-//         cpfUsuario: result[0].cp_cpf,
-//       };
-//       res.send(userData); // Envia nome e CPF do usuário como resposta
-//     } else {
-//       res.status(404).send({ msg: 'Usuário não encontrado' });
-//     }
-//   });
-// });
+// Buscar dados do usuário para matrícula
+app.get('/matricula/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
 
-app.get('/matricula/:userId', (req, res) => {
-  const userId = req.params.userId;
-  const query = `
-    SELECT 
-      cp_nome, 
-      cp_cpf, 
-      cp_datanascimento, 
-      cp_profissao, 
-      cp_estadocivil, 
-      cp_end_cidade_estado, 
-      cp_end_rua, 
-      cp_end_num, 
-      cp_whatsapp, 
-      cp_telefone, 
-      cp_email, 
-      cp_escola_id 
-    FROM cp_usuarios 
-    WHERE cp_id = ?
-  `;
+  try {
+    const usuario = await prisma.cp_usuarios.findUnique({
+      where: { cp_id: userId },
+      select: {
+        cp_nome: true,
+        cp_cpf: true,
+        cp_datanascimento: true,
+        cp_profissao: true,
+        cp_estadocivil: true,
+        cp_end_cidade_estado: true,
+        cp_end_rua: true,
+        cp_end_num: true,
+        cp_whatsapp: true,
+        cp_telefone: true,
+        cp_email: true,
+        cp_escola_id: true
+      }
+    });
 
-  db.query(query, [userId], (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro ao buscar dados do usuário' });
-    } else if (result.length > 0) {
+    if (usuario) {
       const userData = {
-        nomeUsuario: result[0].cp_nome,
-        cpfUsuario: result[0].cp_cpf,
-        dataNascimento: result[0].cp_datanascimento,
-        profissao: result[0].cp_profissao,
-        estadoCivil: result[0].cp_estadocivil,
-        endereco: `${result[0].cp_end_cidade_estado}, ${result[0].cp_end_rua}, ${result[0].cp_end_num}`,
-        whatsapp: result[0].cp_whatsapp,
-        telefone: result[0].cp_telefone,
-        email: result[0].cp_email,
-        escolaId: result[0].cp_escola_id
+        nomeUsuario: usuario.cp_nome,
+        cpfUsuario: usuario.cp_cpf,
+        dataNascimento: usuario.cp_datanascimento,
+        profissao: usuario.cp_profissao,
+        estadoCivil: usuario.cp_estadocivil,
+        endereco: `${usuario.cp_end_cidade_estado}, ${usuario.cp_end_rua}, ${usuario.cp_end_num}`,
+        whatsapp: usuario.cp_whatsapp,
+        telefone: usuario.cp_telefone,
+        email: usuario.cp_email,
+        escolaId: usuario.cp_escola_id
       };
       res.send(userData);
     } else {
       res.status(404).send({ msg: 'Usuário não encontrado' });
     }
-  });
-});
-
-
-
-// // Editar uma matrícula existente
-
-// app.put('/editar-matricula/:matriculaId', async (req, res) => {
-//   const matriculaId = req.params.matriculaId;
-
-//   // Extrair os dados do corpo da requisição
-//   const {
-//     cursoId,
-//     usuarioId,
-//     cpfUsuario,
-//     valorCurso,
-//     numeroParcelas,
-//     status,
-//     escolaId,
-//     escolaridade,
-//     localNascimento,
-//     redeSocial,
-//     nomePai,
-//     contatoPai,
-//     nomeMae,
-//     contatoMae,
-//     horarioInicio,
-//     horarioFim,
-//     nivelIdioma,
-//     primeiraDataPagamento,
-//     nomeUsuario,
-//   } = req.body;
-
-//   try {
-//     // Verificar se a matrícula existe
-//     db.query('SELECT * FROM cp_matriculas WHERE cp_mt_id = ?', [matriculaId], (err, result) => {
-//       if (err) {
-//         console.error('Erro ao buscar matrícula:', err);
-//         res.status(500).send({ msg: 'Erro ao buscar matrícula' });
-//       } else if (result.length === 0) {
-//         res.status(404).send({ msg: 'Matrícula não encontrada' });
-//       } else {
-//         // Matrícula encontrada, prosseguir com a atualização
-//         const updateMatriculaQuery = `
-//           UPDATE cp_matriculas 
-//           SET 
-//             cp_mt_curso = ?,
-//             cp_mt_usuario = ?,
-//             cp_mt_cadastro_usuario = ?,
-//             cp_mt_valor_curso = ?,
-//             cp_mt_quantas_parcelas = ?,
-//             cp_status_matricula = ?,
-//             cp_mt_escola = ?,
-//             cp_mt_escolaridade = ?,
-//             cp_mt_nivel = ?,
-//             cp_mt_local_nascimento = ?,
-//             cp_mt_rede_social = ?,
-//             cp_mt_nome_pai = ?,
-//             cp_mt_contato_pai = ?,
-//             cp_mt_nome_mae = ?,
-//             cp_mt_contato_mae = ?,
-//             cp_mt_horario_inicio = ?,
-//             cp_mt_horario_fim = ?,
-//             cp_mt_primeira_parcela = ?,
-//             cp_mt_nome_usuario = ?
-//           WHERE cp_mt_id = ?
-//         `;
-
-//         // Executar a atualização no banco de dados
-//         db.query(
-//           updateMatriculaQuery,
-//           [
-//             cursoId,
-//             usuarioId,
-//             cpfUsuario,
-//             valorCurso,
-//             numeroParcelas,
-//             status,
-//             escolaId,
-//             escolaridade,
-//             nivelIdioma,
-//             localNascimento,
-//             redeSocial,
-//             nomePai,
-//             contatoPai,
-//             nomeMae,
-//             contatoMae,
-//             horarioInicio,
-//             horarioFim,
-//             primeiraDataPagamento,
-//             nomeUsuario,
-//             matriculaId
-//           ],
-//           (err, result) => {
-//             if (err) {
-//               console.error('Erro ao editar matrícula:', err);
-//               res.status(500).send({ msg: 'Erro ao editar matrícula' });
-//             } else {
-//               console.log('Matrícula editada com sucesso');
-//               res.send({ msg: 'Matrícula editada com sucesso' });
-//             }
-//           }
-//         );
-//       }
-//     });
-//   } catch (error) {
-//     console.error('Erro ao editar matrícula:', error);
-//     res.status(500).send({ msg: 'Erro ao editar matrícula' });
-//   }
-// });
-
-app.put('/editar-matricula/:matriculaId', async (req, res) => {
-  const matriculaId = req.params.matriculaId;
-  const {
-    cursoId, usuarioId, cpfUsuario, valorCurso, numeroParcelas, status, escolaId, escolaridade,
-    localNascimento, redeSocial, nomePai, contatoPai, nomeMae, contatoMae,
-    horarioInicio, horarioFim, nivelIdioma, primeiraDataPagamento, nomeUsuario,
-    tipoPagamento, diasSemana, valorMensalidade
-  } = req.body;
-
-  try {
-    db.beginTransaction(err => {
-      if (err) return res.status(500).send({ msg: 'Erro ao editar matrícula' });
-
-      db.query('SELECT * FROM cp_matriculas WHERE cp_mt_id = ?', [matriculaId], (err, resultado) => {
-        if (err || !resultado.length)
-          return db.rollback(() => res.status(500).send({ msg: 'Matrícula não encontrada' }));
-
-        const query = `UPDATE cp_matriculas SET cp_mt_curso=?, cp_mt_usuario=?, cp_mt_cadastro_usuario=?, cp_mt_valor_curso=?,
-          cp_mt_quantas_parcelas=?, cp_status_matricula=?, cp_mt_escola=?, cp_mt_escolaridade=?, cp_mt_nivel=?,
-          cp_mt_local_nascimento=?, cp_mt_rede_social=?, cp_mt_nome_pai=?, cp_mt_contato_pai=?, cp_mt_nome_mae=?,
-          cp_mt_contato_mae=?, cp_mt_horario_inicio=?, cp_mt_horario_fim=?, cp_mt_primeira_parcela=?, cp_mt_nome_usuario=?,
-          cp_mt_tipo_pagamento=?, cp_mt_dias_semana=?, cp_mt_valor_mensalidade=? WHERE cp_mt_id=?`;
-
-        const valores = [
-          cursoId, usuarioId, cpfUsuario, valorCurso, numeroParcelas, status, escolaId, escolaridade, nivelIdioma,
-          localNascimento, redeSocial, nomePai, contatoPai, nomeMae, contatoMae, horarioInicio, horarioFim,
-          primeiraDataPagamento, nomeUsuario, tipoPagamento, diasSemana, valorMensalidade, matriculaId
-        ];
-
-        db.query(query, valores, err => {
-          if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao editar matrícula' }));
-
-          db.query('DELETE FROM cp_matriculaParcelas WHERE cp_mt_id = ?', [matriculaId], err => {
-            if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao remover parcelas' }));
-
-            if (tipoPagamento === "parcelado") {
-              const valorParcela = parseFloat((valorCurso / numeroParcelas).toFixed(2));
-              const [ano, mes, dia] = primeiraDataPagamento.split('-').map(Number);
-              const parcelas = [];
-
-              for (let i = 0; i < numeroParcelas; i++) {
-                const d = new Date(ano, mes - 1 + i, dia);
-                parcelas.push([matriculaId, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 'à vencer', valorParcela]);
-              }
-
-              db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [parcelas], err => {
-                if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar parcelas' }));
-                db.commit(err => {
-                  if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
-                  res.send({ msg: 'Matrícula e parcelas atualizadas com sucesso' });
-                });
-              });
-            } else if (tipoPagamento === "mensalidade") {
-              const [ano, mes, dia] = primeiraDataPagamento.split('-').map(Number);
-              const mensalidades = [];
-
-              for (let i = 0; i < 12; i++) {
-                const d = new Date(ano, mes - 1 + i, dia);
-                mensalidades.push([matriculaId, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 'à vencer', valorMensalidade]);
-              }
-
-              db.query('INSERT INTO cp_matriculaParcelas (cp_mt_id, cp_mtPar_dataParcela, cp_mtPar_status, cp_mtPar_valorParcela) VALUES ?', [mensalidades], err => {
-                if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao cadastrar mensalidades' }));
-                db.commit(err => {
-                  if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
-                  res.send({ msg: 'Matrícula e mensalidades atualizadas com sucesso' });
-                });
-              });
-            } else {
-              db.commit(err => {
-                if (err) return db.rollback(() => res.status(500).send({ msg: 'Erro ao concluir edição' }));
-                res.send({ msg: 'Matrícula atualizada com sucesso' });
-              });
-            }
-          });
-        });
-      });
-    });
-  } catch (error) {
-    res.status(500).send({ msg: 'Erro inesperado ao editar matrícula' });
+  } catch (err) {
+    console.error('Erro ao buscar dados do usuário:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao buscar dados do usuário' });
   }
 });
 
-
-
-// Excluir uma matrícula pelo ID
-app.delete('/excluir-matricula/:matriculaId', (req, res) => {
-  const matriculaId = req.params.matriculaId;
-  const excluirParcelasQuery = 'DELETE FROM cp_matriculaParcelas WHERE cp_mt_id = ?';
-  const excluirMatriculaQuery = 'DELETE FROM cp_matriculas WHERE cp_mt_id = ?';
-
-  // Iniciar uma transação para garantir que ambas as operações ocorram juntas
-  db.beginTransaction((err) => {
-    if (err) {
-      console.error('Erro ao iniciar transação:', err);
-      return res.status(500).send({ msg: 'Erro ao iniciar transação' });
-    }
-
-    // Primeiro, excluir todas as parcelas relacionadas
-    db.query(excluirParcelasQuery, [matriculaId], (err, result) => {
-      if (err) {
-        console.error('Erro ao excluir parcelas:', err);
-        return db.rollback(() => {
-          res.status(500).send({ msg: 'Erro ao excluir parcelas' });
-        });
-      }
-
-      // Em seguida, excluir a matrícula
-      db.query(excluirMatriculaQuery, [matriculaId], (err, result) => {
-        if (err) {
-          console.error('Erro ao excluir matrícula:', err);
-          return db.rollback(() => {
-            res.status(500).send({ msg: 'Erro ao excluir matrícula' });
-          });
-        }
-
-        // Confirmar a transação
-        db.commit((err) => {
-          if (err) {
-            console.error('Erro ao confirmar transação:', err);
-            return db.rollback(() => {
-              res.status(500).send({ msg: 'Erro ao confirmar transação' });
-            });
-          }
-
-          console.log('Matrícula e parcelas excluídas com sucesso');
-          res.send({ msg: 'Matrícula e parcelas excluídas com sucesso' });
-        });
-      });
-    });
-  });
-});
-
-
-// Rota para realizar a correção
-app.get('/corrigir-escolas', (req, res) => {
-  const query = `
-    UPDATE cp_matriculas m
-    JOIN cp_usuarios u ON m.cp_mt_usuario = u.cp_id
-    SET m.cp_mt_escola = u.cp_escola_id
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao executar a query:', err);
-      res.status(500).send('Erro interno ao tentar corrigir as escolas');
-    } else {
-      console.log('Correção realizada com sucesso');
-      res.status(200).send('Correção realizada com sucesso');
-    }
-  });
-});
-
-
-// Rota para selecionar todos os campos da tabela cp_matriculaParcelas
-app.get('/financeira', (req, res) => {
-  // Execute a query SQL para selecionar todos os campos da tabela cp_matriculaParcelas
-  db.query('SELECT * FROM cp_matriculaParcelas', (err, rows) => {
-    if (err) {
-      console.error('Erro ao selecionar parcelas:', err);
-      return res.status(500).json({ error: 'Erro ao selecionar parcelas' });
-    }
-
-    res.json(rows); // Retorna os resultados como JSON
-  });
-});
-
-
-// Rota para buscar informações específicas baseado no cp_mt_id
-app.get('/financeira/:id', (req, res) => {
-  const { id } = req.params;
-
-  // Consulta SQL para selecionar campos específicos baseado no cp_mt_id
-  const query = `
-    SELECT cp_mt_escola, cp_mt_nome_usuario, cp_status_matricula
-    FROM cp_matriculas
-    WHERE cp_mt_id = ?
-  `;
-
-  // Executa a query SQL com o ID fornecido
-  db.query(query, [id], (err, rows) => {
-    if (err) {
-      console.error('Erro ao selecionar informações:', err);
-      return res.status(500).json({ error: 'Erro ao selecionar informações' });
-    }
-
-    res.json(rows); // Retorna os resultados como JSON
-  });
-});
-
-// nova rota para unir parcelas + matrícula
-app.get('/financeiroParcelas', (req, res) => {
-  const { schoolId, userId } = req.query;
-  
-  let query = `
-    SELECT
-      mp.cp_mtPar_id,
-      mp.cp_mt_id,
-      mp.cp_mtPar_dataParcela,
-      mp.cp_mtPar_status,
-      mp.cp_mtPar_valorParcela,
-      m.cp_mt_escola,
-      m.cp_mt_nome_usuario,
-      m.cp_status_matricula,
-      m.cp_mt_tipo_pagamento,
-      m.cp_mt_valor_mensalidade,
-      m.cp_mt_quantas_parcelas,
-      m.cp_mt_valor_curso,
-      m.cp_mt_usuario
-    FROM cp_matriculaParcelas mp
-    JOIN cp_matriculas m ON mp.cp_mt_id = m.cp_mt_id
-    WHERE 1=1
-  `;
-  
-  const params = [];
-  
-  // Se for um usuário específico (aluno), filtrar apenas suas matrículas com tipo parcelado
-  if (userId) {
-    query += ` AND m.cp_mt_usuario = ? AND m.cp_mt_tipo_pagamento = 'parcelado'`;
-    params.push(userId);
-  }
-  
-  // Se for filtro por escola
-  if (schoolId) {
-    query += ` AND m.cp_mt_escola = ?`;
-    params.push(schoolId);
-  }
-
-  db.query(query, params, (err, rows) => {
-    if (err) {
-      console.error('Erro ao selecionar financeiroParcelas:', err);
-      return res.status(500).json({ error: 'Erro ao selecionar financeiroParcelas' });
-    }
-    res.json(rows);
-  });
-});
-
-// Rota para atualizar o status da parcela
-app.put('/update-status/:parcelaId', (req, res) => {
-  const parcelaId = req.params.parcelaId;
-  const newStatus = req.body.status;
-
-  if (newStatus !== "Pago" && newStatus !== "à vencer") {
-    return res.status(400).json({ error: "Status inválido" });
-  }
-
-  db.query(
-    'UPDATE cp_matriculaParcelas SET cp_mtPar_status = ? WHERE cp_mtPar_id = ?',
-    [newStatus, parcelaId],
-    (err, result) => {
-      if (err) {
-        console.error('Erro ao atualizar o status da parcela:', err);
-        res.status(500).json({ error: 'Erro ao atualizar o status da parcela' });
-        return;
-      }
-      res.status(200).json({ message: 'Status da parcela atualizado com sucesso' });
-    }
-  );
-});
-
-
-
-
-// FIM MATRICULA //
-// rotas de testes //
-
-
-// Rota para atualizar os nomes na tabela cp_matriculas
-app.get('/atualizar-nomes', (req, res) => {
-  db.query('SELECT cp_id, cp_nome FROM cp_usuarios', (err, usuarios) => {
-    if (err) {
-      console.error('Erro ao consultar cp_usuarios:', err);
-      return res.status(500).send('Erro ao consultar usuários');
-    }
-
-    let totalUsuarios = usuarios.length;
-    let atualizados = 0;
-    let erros = 0;
-
-    usuarios.forEach(usuario => {
-      const { cp_id, cp_nome } = usuario;
-      db.query(
-        'UPDATE cp_matriculas SET cp_mt_nome_usuario = ? WHERE cp_mt_usuario = ?',
-        [cp_nome, cp_id],
-        (err, result) => {
-          if (err) {
-            console.error(`Erro ao atualizar cp_matriculas para o usuário ${cp_id}:`, err);
-            erros++;
-          } else {
-            atualizados += result.affectedRows;
-          }
-
-          if (atualizados + erros === totalUsuarios) {
-            res.send(`Atualização concluída: ${atualizados} registros atualizados, ${erros} erros`);
-          }
-        }
-      );
-    });
-  });
-});
-
-// Rota para buscar aniversário de um usuário específico
-app.get('/aniversario/:userId', (req, res) => {
-  const userId = req.params.userId;
-
-  db.query('SELECT cp_datanascimento FROM cp_usuarios WHERE cp_id = ? AND cp_excluido = 0', [userId], (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar aniversário do usuário:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else if (result.length === 0) {
-      res.status(404).send({ msg: 'Usuário não encontrado' });
-    } else {
-      res.send(result[0]); // Retorna { cp_datanascimento: "YYYY-MM-DD" }
-    }
-  });
-});
-
-// Rota para Agenda
-
-app.get('/aniversariantes', (req, res) => {
-  const today = new Date();
-  const day = today.getDate();
-  const month = today.getMonth() + 1; // Os meses começam do 0
-  const currentDate = `${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day}`; // MM-DD
-
-  const query = `
-    SELECT cp_nome, cp_datanascimento, cp_escola_id
-    FROM cp_usuarios
-    WHERE DATE_FORMAT(cp_datanascimento, '%m-%d') BETWEEN ? AND ?
-    AND cp_excluido = 0
-    ORDER BY cp_datanascimento
-  `;
-
-  const startDate = currentDate;
-  const endDate = new Date(today);
-  endDate.setDate(endDate.getDate() + 5);
-  const endDay = endDate.getDate();
-  const endMonth = endDate.getMonth() + 1;
-  const endFormatted = `${endMonth < 10 ? '0' + endMonth : endMonth}-${endDay < 10 ? '0' + endDay : endDay}`; // MM-DD
-
-  db.query(query, [startDate, endFormatted], (err, result) => {
-    if (err) {
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.get('/aniversarios-agenda', (req, res) => {
-  const query = `
-    SELECT 
-      cp_id, 
-      cp_nome, 
-      DATE_FORMAT(cp_datanascimento, '%m-%d') AS aniversario, 
-      cp_escola_id 
-    FROM cp_usuarios
-    WHERE cp_excluido = 0
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar aniversários:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-// ROTAS DE MIGRACAO
-
-app.get('/audio-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_audio_id, 
-      cp_curso_id, 
-      cp_nome_audio, 
-      cp_arquivo_audio 
-    FROM cp_audio
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar áudios para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-
-app.get('/parcelas-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_mtPar_id, 
-      cp_mt_id, 
-      cp_mtPar_dataParcela, 
-      cp_mtPar_status, 
-      cp_mtPar_valorParcela 
-    FROM cp_matriculaParcelas
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar parcelas para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.get('/usuarios-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_id, 
-      cp_nome, 
-      cp_email, 
-      cp_login, 
-      cp_password, 
-      cp_tipo_user, 
-      cp_rg, 
-      cp_cpf, 
-      cp_datanascimento, 
-      cp_estadocivil, 
-      cp_cnpj, 
-      cp_ie, 
-      cp_whatsapp, 
-      cp_telefone, 
-      cp_empresaatuacao, 
-      cp_profissao, 
-      cp_end_cidade_estado, 
-      cp_end_rua, 
-      cp_end_num, 
-      cp_end_cep, 
-      cp_descricao, 
-      cp_foto_perfil, 
-      cp_escola_id, 
-      cp_turma_id, 
-      cp_excluido 
-    FROM cp_usuarios
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar usuários para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-
-app.get('/turmas-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_tr_id, 
-      cp_tr_nome, 
-      cp_tr_data, 
-      cp_tr_id_professor, 
-      cp_tr_id_escola, 
-      cp_tr_curso_id 
-    FROM cp_turmas
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar turmas para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-
-app.get('/matriculas-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_mt_id, 
-      cp_mt_curso, 
-      cp_mt_escola, 
-      cp_mt_usuario, 
-      cp_mt_nome_usuario, 
-      cp_mt_cadastro_usuario, 
-      cp_mt_valor_curso, 
-      cp_mt_quantas_parcelas, 
-      cp_mt_parcelas_pagas, 
-      cp_mt_primeira_parcela, 
-      cp_status_matricula, 
-      cp_mt_nivel, 
-      cp_mt_horario_inicio, 
-      cp_mt_horario_fim, 
-      cp_mt_escolaridade, 
-      cp_mt_local_nascimento, 
-      cp_mt_rede_social, 
-      cp_mt_nome_pai, 
-      cp_mt_contato_pai, 
-      cp_mt_nome_mae, 
-      cp_mt_contato_mae, 
-      cp_mt_excluido, 
-      cp_mt_tipo_pagamento, 
-      cp_mt_dias_semana 
-    FROM cp_matriculas
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar matrículas para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-
-app.get('/escolas-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_ec_id, 
-      cp_ec_nome, 
-      cp_ec_data_cadastro, 
-      cp_ec_responsavel, 
-      cp_ec_endereco_rua, 
-      cp_ec_endereco_numero, 
-      cp_ec_endereco_cidade, 
-      cp_ec_endereco_bairro, 
-      cp_ec_endereco_estado, 
-      cp_ec_excluido, 
-      cp_ec_descricao 
-    FROM cp_escolas
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar escolas para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-app.get('/cursos-migracao', (req, res) => {
-  const query = `
-    SELECT 
-      cp_curso_id, 
-      cp_nome_curso, 
-      cp_youtube_link_curso, 
-      cp_pdf1_curso, 
-      cp_pdf2_curso, 
-      cp_pdf3_curso 
-    FROM cp_curso
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar cursos para migração:', err);
-      res.status(500).send({ msg: 'Erro no servidor' });
-    } else {
-      res.send(result);
-    }
-  });
-});
-
-
-
-// ===== ROTAS PARA NOTAS =====
-
-// Criar nova nota
-app.post('/notas', (req, res) => {
-  const { turmaId, alunoId, data, notaWorkbook, notaProva } = req.body;
-
-  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
-
-  const query = `
-    INSERT INTO cp_notas (cp_nota_turma_id, cp_nota_aluno_id, cp_nota_data, cp_nota_workbook, cp_nota_prova, cp_nota_media)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-
-  db.query(query, [turmaId, alunoId, data, notaWorkbook, notaProva, media], (err, result) => {
-    if (err) {
-      console.error('Erro ao salvar nota:', err);
-      res.status(500).json({ error: 'Erro ao salvar nota' });
-    } else {
-      res.status(201).json({ 
-        message: 'Nota salva com sucesso',
-        notaId: result.insertId 
-      });
-    }
-  });
-});
-
-// Buscar notas de uma turma
-app.get('/notas/turma/:turmaId', (req, res) => {
-  const turmaId = req.params.turmaId;
-
-  const query = `
-    SELECT n.*, u.cp_nome AS cp_nome_aluno
-    FROM cp_notas n
-    JOIN cp_usuarios u ON n.cp_nota_aluno_id = u.cp_id
-    WHERE n.cp_nota_turma_id = ?
-    ORDER BY n.cp_nota_data DESC
-  `;
-
-  db.query(query, [turmaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao buscar notas:', err);
-      res.status(500).json({ error: 'Erro ao buscar notas' });
-    } else {
-      res.json(result);
-    }
-  });
-});
-
-// Atualizar nota
-app.put('/notas/:notaId', (req, res) => {
-  const notaId = req.params.notaId;
-  const { notaWorkbook, notaProva } = req.body;
-
-  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
-
-  const query = `
-    UPDATE cp_notas 
-    SET cp_nota_workbook = ?, cp_nota_prova = ?, cp_nota_media = ?
-    WHERE cp_nota_id = ?
-  `;
-
-  db.query(query, [notaWorkbook, notaProva, media, notaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao atualizar nota:', err);
-      res.status(500).json({ error: 'Erro ao atualizar nota' });
-    } else {
-      res.json({ message: 'Nota atualizada com sucesso' });
-    }
-  });
-});
-
-// Deletar nota
-app.delete('/notas/:notaId', (req, res) => {
-  const notaId = req.params.notaId;
-
-  const query = 'DELETE FROM cp_notas WHERE cp_nota_id = ?';
-
-  db.query(query, [notaId], (err, result) => {
-    if (err) {
-      console.error('Erro ao deletar nota:', err);
-      res.status(500).json({ error: 'Erro ao deletar nota' });
-    } else {
-      res.json({ message: 'Nota deletada com sucesso' });
-    }
-  });
-});
-
-// ===== FIM ROTAS PARA NOTAS =====
-
-const PORT = 3001;
-app.listen(PORT, () => {
+/* FIM MATRÍCULAS */
+
+// Inicializar servidor
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
 });

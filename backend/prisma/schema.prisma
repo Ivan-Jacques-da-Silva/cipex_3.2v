@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -25,8 +24,8 @@ model cp_usuarios {
   cp_cpf                 String    @db.VarChar(14)
   cp_datanascimento      DateTime  @db.Date
   cp_estadocivil         String?   @db.VarChar(45)
-  cp_cnpj                BigInt?
-  cp_ie                  BigInt?
+  cp_cnpj                String?
+  cp_ie                  String?
   cp_whatsapp            String?   @db.VarChar(14)
   cp_telefone            String?   @db.VarChar(14)
   cp_empresaatuacao      String?   @db.VarChar(45)
@@ -34,7 +33,7 @@ model cp_usuarios {
   cp_end_cidade_estado   String?   @db.VarChar(45)
   cp_end_rua             String?   @db.VarChar(45)
   cp_end_num             Int?
-  cp_end_cep             BigInt?
+  cp_end_cep             String?
   cp_descricao           String?   @db.Text
   cp_foto_perfil         String?   @db.VarChar(255)
   cp_escola_id           Int?
@@ -125,7 +124,7 @@ model cp_matriculas {
   cp_mt_id               Int       @id @default(autoincrement())
   cp_mt_curso            String?   @db.VarChar(255)
   cp_mt_escola           Int?
-  cp_mt_usuario          String?   @db.VarChar(255)
+  cp_mt_usuario          Int?
   cp_mt_nome_usuario     String?   @db.VarChar(255)
   cp_mt_cadastro_usuario String?   @db.VarChar(255)
   cp_mt_valor_curso      Decimal?  @db.Decimal(10,2)
