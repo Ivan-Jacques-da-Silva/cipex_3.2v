@@ -1,0 +1,249 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model cp_usuarios {
+  cp_id                  Int       @id @default(autoincrement())
+  cp_nome                String    @db.VarChar(80)
+  cp_email               String    @db.VarChar(45)
+  cp_login               String    @db.VarChar(45)
+  cp_password            String    @db.VarChar(200)
+  cp_tipo_user           Int
+  cp_rg                  String?   @db.VarChar(20)
+  cp_cpf                 String    @db.VarChar(14)
+  cp_datanascimento      DateTime  @db.Date
+  cp_estadocivil         String?   @db.VarChar(45)
+  cp_cnpj                BigInt?
+  cp_ie                  BigInt?
+  cp_whatsapp            String?   @db.VarChar(14)
+  cp_telefone            String?   @db.VarChar(14)
+  cp_empresaatuacao      String?   @db.VarChar(45)
+  cp_profissao           String?   @db.VarChar(45)
+  cp_end_cidade_estado   String?   @db.VarChar(45)
+  cp_end_rua             String?   @db.VarChar(45)
+  cp_end_num             Int?
+  cp_end_cep             BigInt?
+  cp_descricao           String?   @db.Text
+  cp_foto_perfil         String?   @db.VarChar(255)
+  cp_escola_id           Int?
+  cp_turma_id            Int?
+  cp_excluido            Int       @default(0)
+
+  // Relações
+  escola                 cp_escolas?     @relation(fields: [cp_escola_id], references: [cp_ec_id])
+  turma                  cp_turmas?      @relation("AlunoTurma", fields: [cp_turma_id], references: [cp_tr_id])
+  turmas_professor       cp_turmas[]     @relation("ProfessorTurma")
+  chamadas               cp_chamadas[]
+  tr_alunos              cp_tr_aluno[]
+  vizu_audios            cp_vizu_aud_usuarios[]
+
+  @@map("cp_usuarios")
+}
+
+model cp_escolas {
+  cp_ec_id               Int       @id @default(autoincrement())
+  cp_ec_nome             String?   @db.VarChar(100)
+  cp_ec_data_cadastro    DateTime? @db.Date
+  cp_ec_responsavel      String?   @db.VarChar(50)
+  cp_ec_endereco_rua     String?   @db.VarChar(100)
+  cp_ec_endereco_numero  String?   @db.VarChar(20)
+  cp_ec_endereco_cidade  String?   @db.VarChar(50)
+  cp_ec_endereco_bairro  String?   @db.VarChar(50)
+  cp_ec_endereco_estado  String?   @db.VarChar(50)
+  cp_ec_excluido         Boolean   @default(false)
+  cp_ec_descricao        String?   @db.VarChar(255)
+
+  // Relações
+  usuarios               cp_usuarios[]
+  turmas                 cp_turmas[]
+  tr_alunos              cp_tr_aluno[]
+  matriculas             cp_matriculas[]
+
+  @@map("cp_escolas")
+}
+
+model cp_turmas {
+  cp_tr_id               Int       @id @default(autoincrement())
+  cp_tr_nome             String    @db.VarChar(100)
+  cp_tr_data             DateTime  @db.Date
+  cp_tr_id_professor     Int
+  cp_tr_id_escola        Int
+  cp_tr_curso_id         Int?
+
+  // Relações
+  professor              cp_usuarios    @relation("ProfessorTurma", fields: [cp_tr_id_professor], references: [cp_id])
+  escola                 cp_escolas     @relation(fields: [cp_tr_id_escola], references: [cp_ec_id])
+  curso                  cp_curso?      @relation(fields: [cp_tr_curso_id], references: [cp_curso_id])
+  alunos                 cp_usuarios[]  @relation("AlunoTurma")
+  chamadas               cp_chamadas[]
+  tr_alunos              cp_tr_aluno[]
+
+  @@map("cp_turmas")
+}
+
+model cp_curso {
+  cp_curso_id            Int       @id @default(autoincrement())
+  cp_nome_curso          String    @db.VarChar(100)
+  cp_youtube_link_curso  String?   @db.VarChar(255)
+  cp_pdf1_curso          String?   @db.VarChar(255)
+  cp_pdf2_curso          String?   @db.VarChar(255)
+  cp_pdf3_curso          String?   @db.VarChar(255)
+
+  // Relações
+  turmas                 cp_turmas[]
+  audios                 cp_audio[]
+
+  @@map("cp_curso")
+}
+
+model cp_audio {
+  cp_audio_id            Int       @id @default(autoincrement())
+  cp_curso_id            Int?
+  cp_nome_audio          String    @db.VarChar(100)
+  cp_arquivo_audio       String    @db.VarChar(255)
+
+  // Relações
+  curso                  cp_curso?   @relation(fields: [cp_curso_id], references: [cp_curso_id])
+  vizu_usuarios          cp_vizu_aud_usuarios[]
+
+  @@map("cp_audio")
+}
+
+model cp_matriculas {
+  cp_mt_id               Int       @id @default(autoincrement())
+  cp_mt_curso            String?   @db.VarChar(255)
+  cp_mt_escola           Int?
+  cp_mt_usuario          String?   @db.VarChar(255)
+  cp_mt_nome_usuario     String?   @db.VarChar(255)
+  cp_mt_cadastro_usuario String?   @db.VarChar(255)
+  cp_mt_valor_curso      Decimal?  @db.Decimal(10,2)
+  cp_mt_quantas_parcelas Int?
+  cp_mt_parcelas_pagas   Int?
+  cp_mt_primeira_parcela DateTime? @db.Date
+  cp_status_matricula    String?   @db.VarChar(50)
+  cp_mt_nivel            String?   @db.VarChar(50)
+  cp_mt_horario_inicio   String?   @db.VarChar(10)
+  cp_mt_horario_fim      String?   @db.VarChar(10)
+  cp_mt_escolaridade     String?   @db.VarChar(100)
+  cp_mt_local_nascimento String?   @db.VarChar(100)
+  cp_mt_rede_social      String?   @db.VarChar(100)
+  cp_mt_nome_pai         String?   @db.VarChar(100)
+  cp_mt_contato_pai      String?   @db.VarChar(20)
+  cp_mt_nome_mae         String?   @db.VarChar(100)
+  cp_mt_contato_mae      String?   @db.VarChar(20)
+  cp_mt_excluido         Int       @default(0)
+  cp_mt_tipo_pagamento   String?   @db.VarChar(20)
+  cp_mt_dias_semana      String?   @db.VarChar(100)
+
+  // Relações
+  escola                 cp_escolas? @relation(fields: [cp_mt_escola], references: [cp_ec_id])
+  parcelas               cp_matriculaParcelas[]
+
+  @@map("cp_matriculas")
+}
+
+model cp_matriculaParcelas {
+  cp_mtp_id              Int       @id @default(autoincrement())
+  cp_mt_id               Int
+  cp_mtp_numero          Int?
+  cp_mtp_valor           Decimal?  @db.Decimal(10,2)
+  cp_mtp_vencimento      DateTime? @db.Date
+  cp_mtp_pago            Boolean   @default(false)
+  cp_mtp_data_pagamento  DateTime? @db.Date
+
+  // Relações
+  matricula              cp_matriculas @relation(fields: [cp_mt_id], references: [cp_mt_id])
+
+  @@map("cp_matriculaParcelas")
+}
+
+model cp_chamadas {
+  cp_ch_id               Int       @id @default(autoincrement())
+  cp_ch_turma_id         Int
+  cp_ch_aluno_id         Int
+  cp_ch_data             DateTime  @db.Date
+  cp_ch_presente         Boolean   @default(false)
+  cp_ch_observacao       String?   @db.Text
+
+  // Relações
+  turma                  cp_turmas   @relation(fields: [cp_ch_turma_id], references: [cp_tr_id])
+  aluno                  cp_usuarios @relation(fields: [cp_ch_aluno_id], references: [cp_id])
+
+  @@map("cp_chamadas")
+}
+
+model cp_mat_extra {
+  cp_me_id               Int       @id @default(autoincrement())
+  cp_me_nome             String?   @db.VarChar(100)
+  cp_me_arquivo          String?   @db.VarChar(255)
+  cp_me_descricao        String?   @db.Text
+
+  @@map("cp_mat_extra")
+}
+
+model cp_mat_materiais {
+  cp_mm_id               Int       @id @default(autoincrement())
+  cp_mm_nome             String?   @db.VarChar(100)
+  cp_mm_arquivo          String?   @db.VarChar(255)
+  cp_mm_tipo             String?   @db.VarChar(50)
+
+  @@map("cp_mat_materiais")
+}
+
+model cp_resumos {
+  cp_rs_id               Int       @id @default(autoincrement())
+  cp_rs_titulo           String?   @db.VarChar(150)
+  cp_rs_conteudo         String?   @db.Text
+  cp_rs_data_criacao     DateTime? @default(now())
+
+  @@map("cp_resumos")
+}
+
+model cp_tr_aluno {
+  cp_tra_id              Int       @id @default(autoincrement())
+  cp_tr_id_escola        Int
+  cp_tr_id_turma         Int
+  cp_tr_id_usuario       Int
+
+  // Relações
+  escola                 cp_escolas  @relation(fields: [cp_tr_id_escola], references: [cp_ec_id])
+  turma                  cp_turmas   @relation(fields: [cp_tr_id_turma], references: [cp_tr_id])
+  usuario                cp_usuarios @relation(fields: [cp_tr_id_usuario], references: [cp_id])
+
+  @@map("cp_tr_aluno")
+}
+
+model cp_vizu_aud_usuarios {
+  cp_vau_id              Int       @id @default(autoincrement())
+  cp_id_usuario          Int
+  cp_id_audio            Int
+  cp_vau_data_vizualizacao DateTime @default(now())
+
+  // Relações
+  usuario                cp_usuarios @relation(fields: [cp_id_usuario], references: [cp_id])
+  audio                  cp_audio    @relation(fields: [cp_id_audio], references: [cp_audio_id])
+
+  @@map("cp_vizu_aud_usuarios")
+}
+
+model eventos {
+  id                     Int       @id @default(autoincrement())
+  titulo                 String?   @db.VarChar(100)
+  descricao              String?   @db.Text
+  data_evento            DateTime? @db.Date
+  data_criacao           DateTime? @default(now())
+
+  @@map("eventos")
+}
