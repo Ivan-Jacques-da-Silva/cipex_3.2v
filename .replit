@@ -17,10 +17,6 @@ localPort = 3001
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 33265
-externalPort = 3000
-
 [deployment]
 run = "cd backend && node index.js & npm run build && npx serve -s build -l 5000"
 
