@@ -1,15 +1,15 @@
-
 modules = ["nodejs-20", "web"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
+packages = ["mysql80"]
 
 [env]
 PORT = "5000"
 HOST = "0.0.0.0"
 
-# Comando único de execução (backend na porta 3001 e frontend na porta 5000)
-run = ["bash", "-c", "cd backend && npm install && node index.js & cd ../frontend && npm install && npm start"]
+# comando único de execução (Vite)
+run = ["bash","-lc","cd backend && node index.js & cd frontend && npm run dev -- --host --port $PORT"]
 
 [[ports]]
 localPort = 3001
@@ -18,6 +18,3 @@ externalPort = 3001
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[deployment]
-run = ["bash", "-c", "cd backend && node index.js & cd ../frontend && npm run build && npx serve -s build -l 5000"]
