@@ -56,7 +56,7 @@ const server = http.createServer(async (req, res) => {
               where: {
                 cp_login: login,
                 cp_password: password, // TODO: Add bcrypt hashing
-                cp_ec_excluido: false
+                cp_excluido: 0
               }
             });
 
@@ -65,10 +65,10 @@ const server = http.createServer(async (req, res) => {
                 success: true,
                 message: 'Login successful',
                 user: {
-                  id: user.cp_idusuario,
+                  id: user.cp_id,
                   name: user.cp_nome,
                   email: user.cp_email,
-                  type: user.cp_tipo
+                  type: user.cp_tipo_user
                 }
               };
             } else {
@@ -85,12 +85,12 @@ const server = http.createServer(async (req, res) => {
       else if (path === '/users' && method === 'GET') {
         try {
           const users = await prisma.cp_usuarios.findMany({
-            where: { cp_ec_excluido: false },
+            where: { cp_excluido: 0 },
             select: {
-              cp_idusuario: true,
+              cp_id: true,
               cp_nome: true,
               cp_email: true,
-              cp_tipo: true,
+              cp_tipo_user: true,
               cp_login: true
             },
             take: 50 // Limit for testing
