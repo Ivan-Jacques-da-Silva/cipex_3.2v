@@ -8,8 +8,11 @@ const multer = require('multer');
 const fs = require('fs');
 const util = require('util');
 
-// Inicializar o Prisma Client
-const prisma = new PrismaClient();
+// Inicializar o Prisma Client com configurações de conexão
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+  errorFormat: 'pretty',
+});
 
 // Lista de origens permitidas
 const allowedOrigins = [
@@ -1384,6 +1387,7 @@ app.get('/matricula/:userId', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Backend PostgreSQL + Prisma ativo em http://0.0.0.0:${PORT}`);
 });
 
 // Graceful shutdown
