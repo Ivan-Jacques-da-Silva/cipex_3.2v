@@ -4,6 +4,17 @@
 
 WowDash is a comprehensive educational portal designed for the CIPEX learning institution. The system serves as a digital platform where students and administrators can access courses, manage user accounts, handle finances, and interact with educational content. Built as a full-stack web application with React frontend and Express.js backend, it provides features including user management, school administration, course enrollment, audio content delivery, calendar scheduling, and financial tracking.
 
+## Recent Changes
+
+**September 21, 2025 - Database Migration Completed**
+- Successfully migrated the educational management system from MySQL to PostgreSQL with Prisma ORM
+- Implemented all essential routes including user management, schools, classes, courses, enrollments, attendance, grades, summaries, and extra materials
+- Added audio visualization tracking, material extra management, class summaries, notes management, and birthday tracking features
+- Enhanced security with bcrypt password hashing for new user registrations and profile updates
+- Added basic authentication middleware to protect sensitive routes
+- Normalized directory structure and file serving for better compatibility
+- Server running on port 3001 with PostgreSQL database connections working correctly
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
