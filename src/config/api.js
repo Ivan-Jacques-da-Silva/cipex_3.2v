@@ -3,8 +3,13 @@
 const getApiBaseUrl = () => {
   const hostname = window.location.hostname;
   
+  // Ambiente de teste com pteste.cipex.com.br
+  if (hostname.includes('pteste.cipex.com.br')) {
+    return 'https://pteste.cipex.com.br:5000'; // Backend na mesma base ou ajuste conforme sua VPS
+  }
+  
   // Ambiente de produção na Hostinger
-  if (hostname.includes('portal.cipex.com.br') || hostname.includes('pteste.cipex.com.br')) {
+  if (hostname.includes('portal.cipex.com.br')) {
     return 'https://portal.cipex.com.br/api'; // Ajuste para seu IP/domínio da Hostinger
   }
   
