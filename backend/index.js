@@ -34,6 +34,7 @@ const allowedOrigins = [
   'http://www.portal.cipex.com.br',
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:5000',
   'http://192.168.2.3:3000',
   'https://4833413e-da9a-4416-85e7-98bc908816a9-00-2fw2ufauj31b5.janeway.replit.dev',
   'portal.cipex.com.br'
