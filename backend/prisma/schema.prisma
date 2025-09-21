@@ -148,6 +148,7 @@ model cp_matriculas {
   cp_mt_excluido         Int       @default(0)
   cp_mt_tipo_pagamento   String?   @db.VarChar(20)
   cp_mt_dias_semana      String?   @db.VarChar(100)
+  cp_mt_valor_mensalidade Decimal? @db.Decimal(10,2)
 
   // Relações
   escola                 cp_escolas? @relation(fields: [cp_mt_escola], references: [cp_ec_id])
