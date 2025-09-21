@@ -18,7 +18,7 @@ externalPort = 3001
 run = "cd backend && node index.js & npm run build && npx serve -s build -l 5000"
 
 [workflows]
-runButton = "Project"
+runButton = "Backend PostgreSQL Fixed"
 
 [[workflows.workflow]]
 name = "Project"
@@ -49,6 +49,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd backend && npm install && npx prisma generate && node index.js"
+
+[[workflows.workflow]]
+name = "Backend PostgreSQL Fixed"
+author = 47831116
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && npm install && npx prisma generate && PORT=5000 node index.js"
 
 [agent]
 expertMode = true

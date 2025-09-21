@@ -1411,6 +1411,353 @@ app.get('/matricula/:userId', async (req, res) => {
   }
 });
 
+// Cadastrar nova matrícula
+app.post('/cadastrar-matricula', async (req, res) => {
+  const {
+    cursoId: cp_mt_curso,
+    usuarioId: cp_mt_usuario,
+    cpfUsuario: cp_mt_cadastro_usuario,
+    valorCurso: cp_mt_valor_curso,
+    numeroParcelas: cp_mt_quantas_parcelas,
+    status: cp_status_matricula,
+    escolaId: cp_mt_escola,
+    escolaridade: cp_mt_escolaridade,
+    localNascimento: cp_mt_local_nascimento,
+    redeSocial: cp_mt_rede_social,
+    nomePai: cp_mt_nome_pai,
+    contatoPai: cp_mt_contato_pai,
+    nomeMae: cp_mt_nome_mae,
+    contatoMae: cp_mt_contato_mae,
+    horarioInicio: cp_mt_horario_inicio,
+    horarioFim: cp_mt_horario_fim,
+    nivelIdioma: cp_mt_nivel,
+    primeiraDataPagamento: cp_mt_primeira_parcela,
+    nomeUsuario: cp_mt_nome_usuario,
+    tipoPagamento: cp_mt_tipo_pagamento,
+    diasSemana: cp_mt_dias_semana,
+    valorMensalidade: cp_mt_valor_mensalidade
+  } = req.body;
+
+  try {
+    const result = await prisma.$transaction(async (prisma) => {
+      // Criar matrícula
+      const newMatricula = await prisma.cp_matriculas.create({
+        data: {
+          cp_mt_curso: cp_mt_curso,
+          cp_mt_usuario: parseInt(cp_mt_usuario),
+          cp_mt_cadastro_usuario: cp_mt_cadastro_usuario,
+          cp_mt_valor_curso: parseFloat(cp_mt_valor_curso),
+          cp_mt_quantas_parcelas: parseInt(cp_mt_quantas_parcelas),
+          cp_mt_parcelas_pagas: 0,
+          cp_status_matricula: cp_status_matricula,
+          cp_mt_escola: parseInt(cp_mt_escola),
+          cp_mt_escolaridade: cp_mt_escolaridade,
+          cp_mt_nivel: nivelIdioma,
+          cp_mt_local_nascimento: localNascimento,
+          cp_mt_rede_social: redeSocial,
+          cp_mt_nome_pai: nomePai,
+          cp_mt_contato_pai: contatoPai,
+          cp_mt_nome_mae: nomeMae,
+          cp_mt_contato_mae: contatoMae,
+          cp_mt_horario_inicio: horarioInicio,
+          cp_mt_horario_fim: horarioFim,
+          cp_mt_excluido: 0,
+          cp_mt_primeira_parcela: new Date(primeiraDataPagamento),
+          cp_mt_nome_usuario: nomeUsuario,
+          cp_mt_tipo_pagamento: tipoPagamento,
+          cp_mt_dias_semana: diasSemana
+        }
+      });
+
+      // Criar parcelas se for parcelado
+      if (tipoPagamento === 'parcelado' && cp_mt_quantas_parcelas > 0) {
+        const valorParcela = parseFloat((cp_mt_valor_curso / cp_mt_quantas_parcelas).toFixed(2));
+        let data = new Date(primeiraDataPagamento);
+        
+        for (let i = 1; i <= cp_mt_quantas_parcelas; i++) {
+          await prisma.cp_matriculaParcelas.create({
+            data: {
+              cp_mt_id: newMatricula.cp_mt_id,
+              cp_mtPar_dataParcela: new Date(data),
+              cp_mtPar_status: 'à vencer',
+              cp_mtPar_valorParcela: valorParcela
+            }
+          });
+          data.setMonth(data.getMonth() + 1);
+        }
+      } else if (tipoPagamento === 'mensalidade' && valorMensalidade > 0) {
+        let data = new Date(primeiraDataPagamento);
+        
+        for (let i = 1; i <= 12; i++) {
+          await prisma.cp_matriculaParcelas.create({
+            data: {
+              cp_mt_id: newMatricula.cp_mt_id,
+              cp_mtPar_dataParcela: new Date(data),
+              cp_mtPar_status: 'à vencer',
+              cp_mtPar_valorParcela: parseFloat(valorMensalidade)
+            }
+          });
+          data.setMonth(data.getMonth() + 1);
+        }
+      }
+
+      return newMatricula;
+    });
+
+    res.send({ msg: 'Matrícula cadastrada com sucesso', matriculaId: result.cp_mt_id });
+  } catch (err) {
+    console.error('Erro ao cadastrar matrícula:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao cadastrar matrícula' });
+  }
+});
+
+// Editar matrícula
+app.put('/editar-matricula/:matriculaId', async (req, res) => {
+  const matriculaId = parseInt(req.params.matriculaId);
+  const {
+    cursoId,
+    usuarioId,
+    cpfUsuario,
+    valorCurso,
+    numeroParcelas,
+    status,
+    escolaId,
+    escolaridade,
+    localNascimento,
+    redeSocial,
+    nomePai,
+    contatoPai,
+    nomeMae,
+    contatoMae,
+    horarioInicio,
+    horarioFim,
+    nivelIdioma,
+    primeiraDataPagamento,
+    nomeUsuario,
+    tipoPagamento,
+    diasSemana,
+    valorMensalidade
+  } = req.body;
+
+  try {
+    await prisma.$transaction(async (prisma) => {
+      // Atualizar matrícula
+      await prisma.cp_matriculas.update({
+        where: { cp_mt_id: matriculaId },
+        data: {
+          cp_mt_curso: cursoId,
+          cp_mt_usuario: parseInt(usuarioId),
+          cp_mt_cadastro_usuario: cpfUsuario,
+          cp_mt_valor_curso: parseFloat(valorCurso),
+          cp_mt_quantas_parcelas: parseInt(numeroParcelas),
+          cp_status_matricula: status,
+          cp_mt_escola: parseInt(escolaId),
+          cp_mt_escolaridade: escolaridade,
+          cp_mt_nivel: nivelIdioma,
+          cp_mt_local_nascimento: localNascimento,
+          cp_mt_rede_social: redeSocial,
+          cp_mt_nome_pai: nomePai,
+          cp_mt_contato_pai: contatoPai,
+          cp_mt_nome_mae: nomeMae,
+          cp_mt_contato_mae: contatoMae,
+          cp_mt_horario_inicio: horarioInicio,
+          cp_mt_horario_fim: horarioFim,
+          cp_mt_primeira_parcela: new Date(primeiraDataPagamento),
+          cp_mt_nome_usuario: nomeUsuario,
+          cp_mt_tipo_pagamento: tipoPagamento,
+          cp_mt_dias_semana: diasSemana
+        }
+      });
+
+      // Remover parcelas antigas
+      await prisma.cp_matriculaParcelas.deleteMany({
+        where: { cp_mt_id: matriculaId }
+      });
+
+      // Recriar parcelas
+      if (tipoPagamento === 'parcelado') {
+        const valorParcela = parseFloat((valorCurso / numeroParcelas).toFixed(2));
+        let data = new Date(primeiraDataPagamento);
+        
+        for (let i = 0; i < numeroParcelas; i++) {
+          await prisma.cp_matriculaParcelas.create({
+            data: {
+              cp_mt_id: matriculaId,
+              cp_mtPar_dataParcela: new Date(data),
+              cp_mtPar_status: 'à vencer',
+              cp_mtPar_valorParcela: valorParcela
+            }
+          });
+          data.setMonth(data.getMonth() + 1);
+        }
+      } else if (tipoPagamento === 'mensalidade') {
+        let data = new Date(primeiraDataPagamento);
+        
+        for (let i = 0; i < 12; i++) {
+          await prisma.cp_matriculaParcelas.create({
+            data: {
+              cp_mt_id: matriculaId,
+              cp_mtPar_dataParcela: new Date(data),
+              cp_mtPar_status: 'à vencer',
+              cp_mtPar_valorParcela: parseFloat(valorMensalidade)
+            }
+          });
+          data.setMonth(data.getMonth() + 1);
+        }
+      }
+    });
+
+    res.send({ msg: 'Matrícula atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao editar matrícula:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao editar matrícula' });
+  }
+});
+
+// Excluir matrícula
+app.delete('/excluir-matricula/:matriculaId', async (req, res) => {
+  const matriculaId = parseInt(req.params.matriculaId);
+
+  try {
+    await prisma.$transaction(async (prisma) => {
+      // Excluir parcelas primeiro
+      await prisma.cp_matriculaParcelas.deleteMany({
+        where: { cp_mt_id: matriculaId }
+      });
+
+      // Excluir matrícula
+      await prisma.cp_matriculas.delete({
+        where: { cp_mt_id: matriculaId }
+      });
+    });
+
+    res.send({ msg: 'Matrícula e parcelas excluídas com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir matrícula:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro ao excluir matrícula' });
+  }
+});
+
+// Rotas financeiras
+app.get('/financeira', async (req, res) => {
+  try {
+    const parcelas = await prisma.cp_matriculaParcelas.findMany();
+    res.json(parcelas);
+  } catch (err) {
+    console.error('Erro ao buscar parcelas:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar parcelas' });
+  }
+});
+
+app.get('/financeira/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const matricula = await prisma.cp_matriculas.findUnique({
+      where: { cp_mt_id: parseInt(id) },
+      select: {
+        cp_mt_escola: true,
+        cp_mt_nome_usuario: true,
+        cp_status_matricula: true
+      }
+    });
+
+    res.json(matricula ? [matricula] : []);
+  } catch (err) {
+    console.error('Erro ao buscar informações:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar informações' });
+  }
+});
+
+app.get('/financeiroParcelas', async (req, res) => {
+  const { schoolId, userId } = req.query;
+
+  try {
+    let whereClause = {};
+
+    if (userId) {
+      whereClause.matricula = {
+        cp_mt_usuario: parseInt(userId),
+        cp_mt_tipo_pagamento: 'parcelado'
+      };
+    }
+
+    if (schoolId) {
+      whereClause.matricula = {
+        ...whereClause.matricula,
+        cp_mt_escola: parseInt(schoolId)
+      };
+    }
+
+    const parcelas = await prisma.cp_matriculaParcelas.findMany({
+      where: whereClause,
+      include: {
+        matricula: {
+          select: {
+            cp_mt_escola: true,
+            cp_mt_nome_usuario: true,
+            cp_status_matricula: true,
+            cp_mt_tipo_pagamento: true,
+            cp_mt_valor_mensalidade: true,
+            cp_mt_quantas_parcelas: true,
+            cp_mt_valor_curso: true,
+            cp_mt_usuario: true
+          }
+        }
+      }
+    });
+
+    const parcelasFormatted = parcelas.map(parcela => ({
+      cp_mtPar_id: parcela.cp_mtPar_id,
+      cp_mt_id: parcela.cp_mt_id,
+      cp_mtPar_dataParcela: parcela.cp_mtPar_dataParcela,
+      cp_mtPar_status: parcela.cp_mtPar_status,
+      cp_mtPar_valorParcela: parcela.cp_mtPar_valorParcela,
+      cp_mt_escola: parcela.matricula.cp_mt_escola,
+      cp_mt_nome_usuario: parcela.matricula.cp_mt_nome_usuario,
+      cp_status_matricula: parcela.matricula.cp_status_matricula,
+      cp_mt_tipo_pagamento: parcela.matricula.cp_mt_tipo_pagamento,
+      cp_mt_valor_mensalidade: parcela.matricula.cp_mt_valor_mensalidade,
+      cp_mt_quantas_parcelas: parcela.matricula.cp_mt_quantas_parcelas,
+      cp_mt_valor_curso: parcela.matricula.cp_mt_valor_curso,
+      cp_mt_usuario: parcela.matricula.cp_mt_usuario
+    }));
+
+    res.json(parcelasFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar financeiroParcelas:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar financeiroParcelas' });
+  }
+});
+
+app.put('/update-status/:parcelaId', async (req, res) => {
+  const parcelaId = parseInt(req.params.parcelaId);
+  const newStatus = req.body.status;
+
+  if (newStatus !== 'Pago' && newStatus !== 'à vencer') {
+    return res.status(400).json({ error: 'Status inválido' });
+  }
+
+  try {
+    await prisma.cp_matriculaParcelas.update({
+      where: { cp_mtPar_id: parcelaId },
+      data: { cp_mtPar_status: newStatus }
+    });
+
+    res.status(200).json({ message: 'Status da parcela atualizado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar o status da parcela:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao atualizar o status da parcela' });
+  }
+});
+
 /* FIM MATRÍCULAS */
 
 /* VISUALIZAÇÃO DE ÁUDIOS */
@@ -1995,8 +2342,217 @@ app.get('/aniversarios-agenda', async (req, res) => {
 
 /* FIM ANIVERSÁRIOS */
 
+/* ROTAS DE MIGRAÇÃO */
+
+app.get('/audio-migracao', async (req, res) => {
+  try {
+    const audios = await prisma.cp_audio.findMany({
+      select: {
+        cp_audio_id: true,
+        cp_curso_id: true,
+        cp_nome_audio: true,
+        cp_arquivo_audio: true
+      }
+    });
+
+    res.send(audios);
+  } catch (err) {
+    console.error('Erro ao buscar áudios para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/parcelas-migracao', async (req, res) => {
+  try {
+    const parcelas = await prisma.cp_matriculaParcelas.findMany({
+      select: {
+        cp_mtPar_id: true,
+        cp_mt_id: true,
+        cp_mtPar_dataParcela: true,
+        cp_mtPar_status: true,
+        cp_mtPar_valorParcela: true
+      }
+    });
+
+    res.send(parcelas);
+  } catch (err) {
+    console.error('Erro ao buscar parcelas para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/usuarios-migracao', async (req, res) => {
+  try {
+    const usuarios = await prisma.cp_usuarios.findMany();
+    res.send(usuarios);
+  } catch (err) {
+    console.error('Erro ao buscar usuários para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/turmas-migracao', async (req, res) => {
+  try {
+    const turmas = await prisma.cp_turmas.findMany({
+      select: {
+        cp_tr_id: true,
+        cp_tr_nome: true,
+        cp_tr_data: true,
+        cp_tr_id_professor: true,
+        cp_tr_id_escola: true,
+        cp_tr_curso_id: true
+      }
+    });
+
+    res.send(turmas);
+  } catch (err) {
+    console.error('Erro ao buscar turmas para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/matriculas-migracao', async (req, res) => {
+  try {
+    const matriculas = await prisma.cp_matriculas.findMany();
+    res.send(matriculas);
+  } catch (err) {
+    console.error('Erro ao buscar matrículas para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/escolas-migracao', async (req, res) => {
+  try {
+    const escolas = await prisma.cp_escolas.findMany();
+    res.send(escolas);
+  } catch (err) {
+    console.error('Erro ao buscar escolas para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+app.get('/cursos-migracao', async (req, res) => {
+  try {
+    const cursos = await prisma.cp_curso.findMany();
+    res.send(cursos);
+  } catch (err) {
+    console.error('Erro ao buscar cursos para migração:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+/* FIM ROTAS DE MIGRAÇÃO */
+
+/* ROTAS DE CERTIFICADO */
+
+app.get('/certificado/matricula', async (req, res) => {
+  try {
+    const matriculas = await prisma.cp_matriculas.findMany({
+      where: { cp_mt_excluido: 0 },
+      select: {
+        cp_mt_id: true,
+        cp_mt_nome_usuario: true,
+        cp_mt_curso: true,
+        cp_mt_valor_curso: true
+      }
+    });
+
+    const certificados = matriculas.map(m => ({
+      id: m.cp_mt_id,
+      nome: m.cp_mt_nome_usuario,
+      curso: m.cp_mt_curso,
+      cargaHoraria: m.cp_mt_valor_curso
+    }));
+
+    res.json(certificados);
+  } catch (err) {
+    console.error('Erro ao buscar certificados:', err);
+    logError(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* FIM ROTAS DE CERTIFICADO */
+
+/* MATERIAL DE TREINAMENTO */
+
+// Configuração para upload de treinamento
+const treinamentoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'treinamento/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const uploadTreinamento = multer({ storage: treinamentoStorage });
+
+// Servir arquivos de treinamento
+app.use('/treinamento', express.static(path.join(__dirname, 'treinamento')));
+
+// Buscar materiais de treinamento (reutilizando cp_mat_materiais para compatibilidade)
+app.get('/materiais', async (req, res) => {
+  try {
+    const materiais = await prisma.cp_mat_materiais.findMany();
+    
+    const materiaisFormatted = materiais.map(material => ({
+      ...material,
+      cp_mat_miniatura: material.cp_mat_miniatura 
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_miniatura}`
+        : null,
+      cp_mat_arquivoPdf: material.cp_mat_arquivoPdf
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_arquivoPdf}`
+        : null,
+      cp_mat_extra_pdf2: material.cp_mat_extra_pdf2
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_pdf2}`
+        : null,
+      cp_mat_extra_pdf3: material.cp_mat_extra_pdf3
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_pdf3}`
+        : null,
+      cp_mat_permitirDownload: material.cp_mat_permitirDownload || false,
+      cp_mat_extra_codigos: material.cp_mat_extra_codigos || ''
+    }));
+
+    res.json(materiaisFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar materiais:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar materiais' });
+  }
+});
+
+/* FIM MATERIAL DE TREINAMENTO */
+
+/* BUSCAR MATERIAIS POR TURMA */
+
+app.get('/materiais/:turmaID', async (req, res) => {
+  const turmaID = parseInt(req.params.turmaID);
+
+  try {
+    const resumos = await prisma.cp_resumos.findMany({
+      where: { cp_res_turma_id: turmaID }
+    });
+
+    res.json(resumos);
+  } catch (err) {
+    console.error('Erro ao buscar resumos:', err);
+    logError(err);
+    res.status(500).send('Erro ao buscar resumos');
+  }
+});
+
+/* FIM BUSCAR MATERIAIS */
+
 // Inicializar servidor
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Backend PostgreSQL + Prisma ativo em http://0.0.0.0:${PORT}`);
