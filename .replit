@@ -12,16 +12,17 @@ run = "cd backend && npm install && node index.js & npm install && npm start"
 
 [[ports]]
 localPort = 3001
+externalPort = 3001
 
 [[ports]]
-localPort = 5000
+localPort = 33317
 externalPort = 80
 
 [deployment]
 run = "cd backend && node index.js & npm run build && npx serve -s build -l 5000"
 
 [workflows]
-runButton = "Backend PostgreSQL"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -41,8 +42,8 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node backend/index_simple.js"
-waitForPort = 5000
+args = "cd backend && PORT=3001 node index.js"
+waitForPort = 3001
 
 [[workflows.workflow]]
 name = "Backend PostgreSQL"

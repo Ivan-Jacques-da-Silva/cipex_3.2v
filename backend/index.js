@@ -7,11 +7,21 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 const util = require('util');
+const bcrypt = require('bcryptjs');
 
 // Inicializar o Prisma Client com configurações de conexão
 const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
   errorFormat: 'pretty',
+});
+
+// Criar diretórios necessários se não existirem
+['uploads', 'FotoPerfil', 'MaterialCurso', 'AudioCurso', 'MaterialExtra', 'materialdeaula'].forEach(dir => {
+  const dirPath = path.join(__dirname, dir);
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    console.log(`Diretório criado: ${dirPath}`);
+  }
 });
 
 // Lista de origens permitidas
@@ -72,8 +82,7 @@ app.post('/login', async (req, res) => {
   try {
     const user = await prisma.cp_usuarios.findFirst({
       where: {
-        cp_login: login,
-        cp_password: password
+        cp_login: login
       },
       select: {
         cp_id: true,
@@ -81,20 +90,28 @@ app.post('/login', async (req, res) => {
         cp_nome: true,
         cp_foto_perfil: true,
         cp_escola_id: true,
-        cp_turma_id: true
+        cp_turma_id: true,
+        cp_password: true
       }
     });
 
     if (user) {
-      res.send({
-        msg: 'Usuário Logado com sucesso',
-        userId: user.cp_id,
-        userType: user.cp_tipo_user,
-        userName: user.cp_nome,
-        userProfilePhoto: user.cp_foto_perfil,
-        schoolId: user.cp_escola_id,
-        turmaID: user.cp_turma_id
-      });
+      // Verificar senha com bcrypt
+      const isValidPassword = await bcrypt.compare(password, user.cp_password);
+      
+      if (isValidPassword) {
+        res.send({
+          msg: 'Usuário Logado com sucesso',
+          userId: user.cp_id,
+          userType: user.cp_tipo_user,
+          userName: user.cp_nome,
+          userProfilePhoto: user.cp_foto_perfil,
+          schoolId: user.cp_escola_id,
+          turmaID: user.cp_turma_id
+        });
+      } else {
+        res.send({ msg: 'Usuário ou senha incorretos' });
+      }
     } else {
       res.send({ msg: 'Usuário ou senha incorretos' });
     }
@@ -105,8 +122,18 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Deletar usuário
-app.delete('/delete-user/:userId', async (req, res) => {
+// Middleware de autenticação simples (pode ser melhorado com JWT)
+const requireAuth = (req, res, next) => {
+  // Por segurança, requeremos um header de autorização básico
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token de autorização necessário' });
+  }
+  next();
+};
+
+// Deletar usuário (rota protegida)
+app.delete('/delete-user/:userId', requireAuth, async (req, res) => {
   const userId = parseInt(req.params.userId);
 
   try {
@@ -125,8 +152,8 @@ app.delete('/delete-user/:userId', async (req, res) => {
   }
 });
 
-// Listar todos os usuários
-app.get('/users', async (req, res) => {
+// Listar todos os usuários (rota protegida)
+app.get('/users', requireAuth, async (req, res) => {
   try {
     const users = await prisma.cp_usuarios.findMany({
       select: {
@@ -215,12 +242,15 @@ app.post('/register', profilePhotoUpload.single('cp_foto_perfil'), async (req, r
   console.log('Inserindo novo usuário...');
 
   try {
+    // Hash da senha antes de salvar
+    const hashedPassword = await bcrypt.hash(cp_password, 10);
+    
     const newUser = await prisma.cp_usuarios.create({
       data: {
         cp_nome,
         cp_email,
         cp_login,
-        cp_password,
+        cp_password: hashedPassword,
         cp_tipo_user: parseInt(cp_tipo_user),
         cp_rg: cp_rg || null,
         cp_cpf,
@@ -331,7 +361,7 @@ app.put('/update-profile/:userId', async (req, res) => {
   };
 
   if (cp_password && cp_password.trim() !== '') {
-    updateData.cp_password = cp_password;
+    updateData.cp_password = await bcrypt.hash(cp_password, 10);
   }
 
   try {
@@ -833,9 +863,9 @@ app.get('/curso-material/:cursoId', async (req, res) => {
 
       const responseData = {
         cp_youtube_link_curso: curso.cp_youtube_link_curso,
-        cp_pdf1_curso: curso.cp_pdf1_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf1_curso}` : null,
-        cp_pdf2_curso: curso.cp_pdf2_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf2_curso}` : null,
-        cp_pdf3_curso: curso.cp_pdf3_curso ? `https://testes.cursoviolaocristao.com.br${curso.cp_pdf3_curso}` : null,
+        cp_pdf1_curso: curso.cp_pdf1_curso ? `${req.protocol}://${req.get('host')}${curso.cp_pdf1_curso}` : null,
+        cp_pdf2_curso: curso.cp_pdf2_curso ? `${req.protocol}://${req.get('host')}${curso.cp_pdf2_curso}` : null,
+        cp_pdf3_curso: curso.cp_pdf3_curso ? `${req.protocol}://${req.get('host')}${curso.cp_pdf3_curso}` : null,
       };
 
       res.status(200).json(responseData);
@@ -1383,8 +1413,590 @@ app.get('/matricula/:userId', async (req, res) => {
 
 /* FIM MATRÍCULAS */
 
+/* VISUALIZAÇÃO DE ÁUDIOS */
+
+// Registrar visualização de áudio
+app.post('/registrar-visualizacao', async (req, res) => {
+  const { userId, audioId } = req.body;
+
+  if (!userId || !audioId) {
+    return res.status(400).json({ error: 'É necessário fornecer userId e audioId' });
+  }
+
+  try {
+    // Verificar se já existe um registro
+    const existingView = await prisma.cp_vizu_aud_usuarios.findFirst({
+      where: {
+        cp_id_usuario: parseInt(userId),
+        cp_id_audio: parseInt(audioId)
+      }
+    });
+
+    if (existingView) {
+      // Atualizar registro existente
+      await prisma.cp_vizu_aud_usuarios.update({
+        where: { cp_vau_id: existingView.cp_vau_id },
+        data: { cp_vau_data_vizualizacao: new Date() }
+      });
+      res.status(200).json({ message: 'Visualização de áudio atualizada com sucesso' });
+    } else {
+      // Criar novo registro
+      await prisma.cp_vizu_aud_usuarios.create({
+        data: {
+          cp_id_usuario: parseInt(userId),
+          cp_id_audio: parseInt(audioId)
+        }
+      });
+      res.status(200).json({ message: 'Visualização de áudio registrada com sucesso' });
+    }
+  } catch (err) {
+    console.error('Erro ao registrar visualização de áudio:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao registrar visualização de áudio' });
+  }
+});
+
+// Buscar áudios marcados como ouvidos pelo usuário
+app.get('/audios-marcados/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
+
+  try {
+    const audiosMarcados = await prisma.cp_vizu_aud_usuarios.findMany({
+      where: { cp_id_usuario: userId },
+      select: { cp_id_audio: true }
+    });
+
+    const audioIds = audiosMarcados.map(item => item.cp_id_audio);
+    res.status(200).json(audioIds);
+  } catch (err) {
+    console.error('Erro ao buscar áudios marcados como ouvidos:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar áudios marcados como ouvidos' });
+  }
+});
+
+/* FIM VISUALIZAÇÃO DE ÁUDIOS */
+
+/* MATERIAL EXTRA */
+
+// Configuração para upload de material extra
+const materialExtraStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'MaterialExtra/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const uploadMaterialExtra = multer({ 
+  storage: materialExtraStorage,
+  fileFilter: (req, file, cb) => {
+    // Aceitar apenas PDFs e imagens
+    const allowedTypes = /pdf|jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos PDF e imagens são permitidos'));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+// Servir arquivos estáticos
+app.use('/MaterialExtra', express.static(path.join(__dirname, 'MaterialExtra')));
+app.use('/materialExtra', express.static(path.join(__dirname, 'MaterialExtra'))); // Compatibilidade
+
+// Buscar todos os materiais extra
+app.get('/material-extra', async (req, res) => {
+  try {
+    const materiais = await prisma.cp_mat_extra.findMany();
+    
+    const materiaisFormatted = materiais.map(material => ({
+      ...material,
+      cp_mat_extra_thumbnail: material.cp_mat_extra_thumbnail 
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_thumbnail}`
+        : null,
+      cp_mat_extra_pdf1: material.cp_mat_extra_pdf1
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_pdf1}`
+        : null,
+      cp_mat_extra_pdf2: material.cp_mat_extra_pdf2
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_pdf2}`
+        : null,
+      cp_mat_extra_pdf3: material.cp_mat_extra_pdf3
+        ? `${req.protocol}://${req.get('host')}/${material.cp_mat_extra_pdf3}`
+        : null
+    }));
+
+    res.json(materiaisFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar materiais:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar materiais' });
+  }
+});
+
+// Cadastrar novo material extra
+app.post('/material-extra', uploadMaterialExtra.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'pdf1', maxCount: 1 },
+  { name: 'pdf2', maxCount: 1 },
+  { name: 'pdf3', maxCount: 1 }
+]), async (req, res) => {
+  const {
+    title,
+    description,
+    date,
+    youtube_url,
+    categories,
+    permitirDownload,
+    codigos
+  } = req.body;
+
+  const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].path : null;
+  const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].path : null;
+  const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].path : null;
+  const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].path : null;
+
+  try {
+    await prisma.cp_mat_extra.create({
+      data: {
+        cp_mat_extra_thumbnail: thumbnail,
+        cp_mat_extra_title: title,
+        cp_mat_extra_description: description,
+        cp_mat_extra_date: date ? new Date(date) : null,
+        cp_mat_extra_youtube_url: youtube_url,
+        cp_mat_extra_pdf1: pdf1,
+        cp_mat_extra_pdf2: pdf2,
+        cp_mat_extra_pdf3: pdf3,
+        cp_mat_extra_categories: categories,
+        cp_mat_extra_permitirDownload: permitirDownload === 'true',
+        cp_mat_extra_codigos: codigos
+      }
+    });
+
+    res.status(201).json({ message: 'Material cadastrado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao cadastrar material:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao cadastrar material' });
+  }
+});
+
+// Editar material extra
+app.put('/material-extra/:id', uploadMaterialExtra.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'pdf1', maxCount: 1 },
+  { name: 'pdf2', maxCount: 1 },
+  { name: 'pdf3', maxCount: 1 }
+]), async (req, res) => {
+  const { id } = req.params;
+  const {
+    title,
+    description,
+    date,
+    youtube_url,
+    categories,
+    permitirDownload,
+    codigos
+  } = req.body;
+
+  const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].path : null;
+  const pdf1 = req.files['pdf1'] ? req.files['pdf1'][0].path : null;
+  const pdf2 = req.files['pdf2'] ? req.files['pdf2'][0].path : null;
+  const pdf3 = req.files['pdf3'] ? req.files['pdf3'][0].path : null;
+
+  try {
+    const updateData = {
+      cp_mat_extra_title: title,
+      cp_mat_extra_description: description,
+      cp_mat_extra_date: date ? new Date(date) : null,
+      cp_mat_extra_youtube_url: youtube_url,
+      cp_mat_extra_categories: categories,
+      cp_mat_extra_permitirDownload: permitirDownload === 'true',
+      cp_mat_extra_codigos: codigos
+    };
+
+    if (thumbnail) updateData.cp_mat_extra_thumbnail = thumbnail;
+    if (pdf1) updateData.cp_mat_extra_pdf1 = pdf1;
+    if (pdf2) updateData.cp_mat_extra_pdf2 = pdf2;
+    if (pdf3) updateData.cp_mat_extra_pdf3 = pdf3;
+
+    await prisma.cp_mat_extra.update({
+      where: { cp_mat_extra_id: parseInt(id) },
+      data: updateData
+    });
+
+    res.status(200).json({ message: 'Material atualizado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar material:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao atualizar material' });
+  }
+});
+
+// Deletar material extra
+app.delete('/material-extra/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.cp_mat_extra.delete({
+      where: { cp_mat_extra_id: parseInt(id) }
+    });
+
+    res.status(200).json({ message: 'Material excluído com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir material:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao excluir material' });
+  }
+});
+
+/* FIM MATERIAL EXTRA */
+
+/* RESUMOS DE AULA */
+
+// Configuração para upload de material de aula
+const materialStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'materialdeaula');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const materialUpload = multer({ storage: materialStorage });
+
+// Servir arquivos estáticos - compatibilidade com ambos os casos
+app.use('/materialdeaula', express.static(path.join(__dirname, 'materialdeaula')));
+
+// Salvar resumo de aula
+app.post('/resumos', materialUpload.single('arquivo'), async (req, res) => {
+  const { turmaId, resumo, data, hora, aula, link, linkYoutube } = req.body;
+  const arquivo = req.file ? req.file.filename : null;
+
+  try {
+    await prisma.cp_resumos.create({
+      data: {
+        cp_res_turma_id: parseInt(turmaId),
+        cp_res_data: new Date(data),
+        cp_res_hora: hora,
+        cp_res_resumo: resumo,
+        cp_res_arquivo: arquivo,
+        cp_res_aula: aula,
+        cp_res_link: link,
+        cp_res_link_youtube: linkYoutube
+      }
+    });
+
+    res.status(201).json({ message: 'Resumo salvo com sucesso' });
+  } catch (err) {
+    console.error('Erro ao inserir resumo no banco de dados:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao salvar resumo' });
+  }
+});
+
+// Buscar resumos por data e turma
+app.get('/resumos/:data/:turmaId', async (req, res) => {
+  const { data, turmaId } = req.params;
+
+  try {
+    const resumos = await prisma.cp_resumos.findMany({
+      where: {
+        cp_res_data: new Date(data),
+        cp_res_turma_id: parseInt(turmaId)
+      }
+    });
+
+    const resumosFormatted = resumos.map(resumo => ({
+      ...resumo,
+      cp_res_arquivo: resumo.cp_res_arquivo
+        ? `${req.protocol}://${req.get('host')}/materialdeaula/${resumo.cp_res_arquivo}`
+        : null
+    }));
+
+    res.status(200).json(resumosFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar resumos no banco de dados:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar resumos' });
+  }
+});
+
+// Buscar todos os resumos de uma turma
+app.get('/resumos/:turmaId', async (req, res) => {
+  const { turmaId } = req.params;
+
+  try {
+    const resumos = await prisma.cp_resumos.findMany({
+      where: { cp_res_turma_id: parseInt(turmaId) },
+      orderBy: { cp_res_data: 'desc' }
+    });
+
+    const resumosFormatted = resumos.map(resumo => ({
+      ...resumo,
+      cp_res_arquivo: resumo.cp_res_arquivo
+        ? `${req.protocol}://${req.get('host')}/materialdeaula/${resumo.cp_res_arquivo}`
+        : null
+    }));
+
+    res.status(200).json(resumosFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar resumos no banco de dados:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar resumos' });
+  }
+});
+
+// Editar resumo
+app.put('/resumos/:id', materialUpload.single('arquivo'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { resumo, aula, link, linkYoutube } = req.body;
+    const arquivo = req.file ? req.file.filename : null;
+
+    const updateData = {
+      cp_res_resumo: resumo,
+      cp_res_aula: aula,
+      cp_res_link: link,
+      cp_res_link_youtube: linkYoutube
+    };
+
+    if (arquivo) {
+      updateData.cp_res_arquivo = arquivo;
+    }
+
+    await prisma.cp_resumos.update({
+      where: { cp_rs_id: parseInt(id) },
+      data: updateData
+    });
+
+    res.status(200).json({ message: 'Resumo editado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao editar resumo no banco de dados:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao editar resumo' });
+  }
+});
+
+/* FIM RESUMOS DE AULA */
+
+/* NOTAS */
+
+// Criar nova nota
+app.post('/notas', async (req, res) => {
+  const { turmaId, alunoId, data, notaWorkbook, notaProva } = req.body;
+
+  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
+
+  try {
+    const novaNota = await prisma.cp_notas.create({
+      data: {
+        cp_nota_turma_id: parseInt(turmaId),
+        cp_nota_aluno_id: parseInt(alunoId),
+        cp_nota_data: new Date(data),
+        cp_nota_workbook: parseFloat(notaWorkbook),
+        cp_nota_prova: parseFloat(notaProva),
+        cp_nota_media: parseFloat(media)
+      }
+    });
+
+    res.status(201).json({
+      message: 'Nota salva com sucesso',
+      notaId: novaNota.cp_nota_id
+    });
+  } catch (err) {
+    console.error('Erro ao salvar nota:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao salvar nota' });
+  }
+});
+
+// Buscar notas de uma turma
+app.get('/notas/turma/:turmaId', async (req, res) => {
+  const turmaId = parseInt(req.params.turmaId);
+
+  try {
+    const notas = await prisma.cp_notas.findMany({
+      where: { cp_nota_turma_id: turmaId },
+      include: {
+        aluno: {
+          select: { cp_nome: true }
+        }
+      },
+      orderBy: { cp_nota_data: 'desc' }
+    });
+
+    const notasFormatted = notas.map(nota => ({
+      ...nota,
+      cp_nome_aluno: nota.aluno.cp_nome
+    }));
+
+    res.json(notasFormatted);
+  } catch (err) {
+    console.error('Erro ao buscar notas:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao buscar notas' });
+  }
+});
+
+// Atualizar nota
+app.put('/notas/:notaId', async (req, res) => {
+  const notaId = parseInt(req.params.notaId);
+  const { notaWorkbook, notaProva } = req.body;
+
+  const media = ((parseFloat(notaWorkbook) + parseFloat(notaProva)) / 2).toFixed(1);
+
+  try {
+    await prisma.cp_notas.update({
+      where: { cp_nota_id: notaId },
+      data: {
+        cp_nota_workbook: parseFloat(notaWorkbook),
+        cp_nota_prova: parseFloat(notaProva),
+        cp_nota_media: parseFloat(media)
+      }
+    });
+
+    res.json({ message: 'Nota atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar nota:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao atualizar nota' });
+  }
+});
+
+// Deletar nota
+app.delete('/notas/:notaId', async (req, res) => {
+  const notaId = parseInt(req.params.notaId);
+
+  try {
+    await prisma.cp_notas.delete({
+      where: { cp_nota_id: notaId }
+    });
+
+    res.json({ message: 'Nota deletada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao deletar nota:', err);
+    logError(err);
+    res.status(500).json({ error: 'Erro ao deletar nota' });
+  }
+});
+
+/* FIM NOTAS */
+
+/* ANIVERSÁRIOS */
+
+// Buscar aniversário de um usuário específico
+app.get('/aniversario/:userId', async (req, res) => {
+  const userId = parseInt(req.params.userId);
+
+  try {
+    const usuario = await prisma.cp_usuarios.findFirst({
+      where: {
+        cp_id: userId,
+        cp_excluido: 0
+      },
+      select: { cp_datanascimento: true }
+    });
+
+    if (usuario) {
+      res.send(usuario);
+    } else {
+      res.status(404).send({ msg: 'Usuário não encontrado' });
+    }
+  } catch (err) {
+    console.error('Erro ao buscar aniversário do usuário:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+// Buscar aniversariantes dos próximos 5 dias
+app.get('/aniversariantes', async (req, res) => {
+  try {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 5);
+
+    const usuarios = await prisma.cp_usuarios.findMany({
+      where: { cp_excluido: 0 },
+      select: {
+        cp_nome: true,
+        cp_datanascimento: true,
+        cp_escola_id: true
+      }
+    });
+
+    // Filtrar aniversariantes dos próximos 5 dias
+    const aniversariantes = usuarios.filter(usuario => {
+      if (!usuario.cp_datanascimento) return false;
+      
+      const birthDate = new Date(usuario.cp_datanascimento);
+      const thisYear = today.getFullYear();
+      const birthdayThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+      
+      return birthdayThisYear >= today && birthdayThisYear <= endDate;
+    });
+
+    aniversariantes.sort((a, b) => {
+      const aDate = new Date(today.getFullYear(), a.cp_datanascimento.getMonth(), a.cp_datanascimento.getDate());
+      const bDate = new Date(today.getFullYear(), b.cp_datanascimento.getMonth(), b.cp_datanascimento.getDate());
+      return aDate - bDate;
+    });
+
+    res.send(aniversariantes);
+  } catch (err) {
+    console.error('Erro ao buscar aniversariantes:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+// Buscar todos os aniversários para agenda
+app.get('/aniversarios-agenda', async (req, res) => {
+  try {
+    const usuarios = await prisma.cp_usuarios.findMany({
+      where: { cp_excluido: 0 },
+      select: {
+        cp_id: true,
+        cp_nome: true,
+        cp_datanascimento: true,
+        cp_escola_id: true
+      }
+    });
+
+    const aniversarios = usuarios
+      .filter(user => user.cp_datanascimento)
+      .map(user => {
+        const birthDate = new Date(user.cp_datanascimento);
+        const month = String(birthDate.getMonth() + 1).padStart(2, '0');
+        const day = String(birthDate.getDate()).padStart(2, '0');
+        
+        return {
+          cp_id: user.cp_id,
+          cp_nome: user.cp_nome,
+          aniversario: `${month}-${day}`,
+          cp_escola_id: user.cp_escola_id
+        };
+      });
+
+    res.send(aniversarios);
+  } catch (err) {
+    console.error('Erro ao buscar aniversários:', err);
+    logError(err);
+    res.status(500).send({ msg: 'Erro no servidor' });
+  }
+});
+
+/* FIM ANIVERSÁRIOS */
+
 // Inicializar servidor
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Backend PostgreSQL + Prisma ativo em http://0.0.0.0:${PORT}`);

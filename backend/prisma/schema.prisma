@@ -47,6 +47,7 @@ model cp_usuarios {
   chamadas               cp_chamadas[]
   tr_alunos              cp_tr_aluno[]
   vizu_audios            cp_vizu_aud_usuarios[]
+  notas                  cp_notas[]
 
   @@map("cp_usuarios")
 }
@@ -88,6 +89,8 @@ model cp_turmas {
   alunos                 cp_usuarios[]  @relation("AlunoTurma")
   chamadas               cp_chamadas[]
   tr_alunos              cp_tr_aluno[]
+  resumos                cp_resumos[]
+  notas                  cp_notas[]
 
   @@map("cp_turmas")
 }
@@ -154,13 +157,11 @@ model cp_matriculas {
 }
 
 model cp_matriculaParcelas {
-  cp_mtp_id              Int       @id @default(autoincrement())
+  cp_mtPar_id            Int       @id @default(autoincrement())
   cp_mt_id               Int
-  cp_mtp_numero          Int?
-  cp_mtp_valor           Decimal?  @db.Decimal(10,2)
-  cp_mtp_vencimento      DateTime? @db.Date
-  cp_mtp_pago            Boolean   @default(false)
-  cp_mtp_data_pagamento  DateTime? @db.Date
+  cp_mtPar_dataParcela   DateTime? @db.Date
+  cp_mtPar_status        String?   @db.VarChar(50)
+  cp_mtPar_valorParcela  Decimal?  @db.Decimal(10,2)
 
   // Relações
   matricula              cp_matriculas @relation(fields: [cp_mt_id], references: [cp_mt_id])
@@ -184,10 +185,18 @@ model cp_chamadas {
 }
 
 model cp_mat_extra {
-  cp_me_id               Int       @id @default(autoincrement())
-  cp_me_nome             String?   @db.VarChar(100)
-  cp_me_arquivo          String?   @db.VarChar(255)
-  cp_me_descricao        String?   @db.Text
+  cp_mat_extra_id                Int       @id @default(autoincrement())
+  cp_mat_extra_thumbnail         String?   @db.VarChar(255)
+  cp_mat_extra_title             String?   @db.VarChar(200)
+  cp_mat_extra_description       String?   @db.Text
+  cp_mat_extra_date              DateTime? @db.Date
+  cp_mat_extra_youtube_url       String?   @db.VarChar(255)
+  cp_mat_extra_pdf1              String?   @db.VarChar(255)
+  cp_mat_extra_pdf2              String?   @db.VarChar(255)
+  cp_mat_extra_pdf3              String?   @db.VarChar(255)
+  cp_mat_extra_categories        String?   @db.VarChar(255)
+  cp_mat_extra_permitirDownload  Boolean   @default(false)
+  cp_mat_extra_codigos           String?   @db.VarChar(255)
 
   @@map("cp_mat_extra")
 }
@@ -203,9 +212,17 @@ model cp_mat_materiais {
 
 model cp_resumos {
   cp_rs_id               Int       @id @default(autoincrement())
-  cp_rs_titulo           String?   @db.VarChar(150)
-  cp_rs_conteudo         String?   @db.Text
-  cp_rs_data_criacao     DateTime? @default(now())
+  cp_res_turma_id        Int?
+  cp_res_data            DateTime? @db.Date
+  cp_res_hora            String?   @db.VarChar(10)
+  cp_res_resumo          String?   @db.Text
+  cp_res_arquivo         String?   @db.VarChar(255)
+  cp_res_aula            String?   @db.VarChar(100)
+  cp_res_link            String?   @db.VarChar(255)
+  cp_res_link_youtube    String?   @db.VarChar(255)
+
+  // Relações
+  turma                  cp_turmas? @relation(fields: [cp_res_turma_id], references: [cp_tr_id])
 
   @@map("cp_resumos")
 }
@@ -235,6 +252,22 @@ model cp_vizu_aud_usuarios {
   audio                  cp_audio    @relation(fields: [cp_id_audio], references: [cp_audio_id])
 
   @@map("cp_vizu_aud_usuarios")
+}
+
+model cp_notas {
+  cp_nota_id             Int       @id @default(autoincrement())
+  cp_nota_turma_id       Int
+  cp_nota_aluno_id       Int
+  cp_nota_data           DateTime  @db.Date
+  cp_nota_workbook       Decimal   @db.Decimal(4,2)
+  cp_nota_prova          Decimal   @db.Decimal(4,2)
+  cp_nota_media          Decimal   @db.Decimal(4,2)
+
+  // Relações
+  turma                  cp_turmas   @relation(fields: [cp_nota_turma_id], references: [cp_tr_id])
+  aluno                  cp_usuarios @relation(fields: [cp_nota_aluno_id], references: [cp_id])
+
+  @@map("cp_notas")
 }
 
 model eventos {
