@@ -15,11 +15,11 @@ const getApiBaseUrl = () => {
   
   // Ambiente Replit
   if (hostname.includes('replit.dev')) {
-    return `${window.location.protocol}//${hostname}:5000`;
+    return `${window.location.protocol}//${hostname}:3001`;
   }
   
   // Ambiente local (localhost)
-  return 'http://localhost:5000';
+  return 'http://localhost:3001';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

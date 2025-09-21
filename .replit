@@ -15,14 +15,14 @@ localPort = 3001
 externalPort = 3001
 
 [[ports]]
-localPort = 5000
+localPort = 40829
 externalPort = 80
 
 [deployment]
 run = "cd backend && node index.js & npm run build && npx serve -s build -l 5000"
 
 [workflows]
-runButton = "Full Stack App"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -42,7 +42,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd backend && PORT=3001 node index.js"
+args = "cd backend && npm start"
 waitForPort = 3001
 
 [[workflows.workflow]]
