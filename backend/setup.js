@@ -3,21 +3,21 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Configurações do PostgreSQL
+// Configurações do PostgreSQL - Usando variáveis de ambiente do Replit
 const POSTGRES_CONFIG = {
-  host: 'localhost',
-  port: 5432,
-  user: 'postgres',
-  password: 'admin'
+  host: process.env.PGHOST || 'localhost',
+  port: process.env.PGPORT || 5432,
+  user: process.env.PGUSER || 'postgres',
+  password: process.env.PGPASSWORD || 'admin'
 };
 
 // Configurações do novo usuário e banco
 const DATABASE_CONFIG = {
-  dbName: 'cipex_portal',
-  username: 'cipex_user',
-  password: 'CipexPortal@2024!SecurePass',
-  host: 'localhost',
-  port: 5432
+  dbName: process.env.POSTGRES_DB || 'cipex_portal',
+  username: process.env.POSTGRES_USER || 'cipex_user',
+  password: process.env.POSTGRES_PASSWORD || 'CipexPortal@2024!SecurePass',
+  host: process.env.PGHOST || 'localhost',
+  port: process.env.PGPORT || 5432
 };
 
 // SQL para criar as tabelas
@@ -383,15 +383,18 @@ async function installPrisma() {
 
   try {
     console.log('📦 Instalando dependências do Prisma...');
-    await execAsync('npm install prisma @prisma/client');
+    await execAsync('npm install prisma @prisma/client', { cwd: __dirname });
+    
+    console.log('🔄 Executando migrações...');
+    await execAsync('npx prisma migrate deploy', { cwd: __dirname });
     
     console.log('🔄 Gerando Prisma Client...');
-    await execAsync('npx prisma generate');
+    await execAsync('npx prisma generate', { cwd: __dirname });
     
     console.log('✅ Prisma configurado com sucesso');
   } catch (error) {
     console.error('❌ Erro ao configurar Prisma:', error.message);
-    console.log('ℹ️ Execute manualmente: npm install prisma @prisma/client && npx prisma generate');
+    console.log('ℹ️ Execute manualmente: npm install prisma @prisma/client && npx prisma migrate deploy && npx prisma generate');
   }
 }
 
@@ -399,6 +402,9 @@ async function testConnection() {
   console.log('🧪 Testando conexão com o banco...');
   
   try {
+    // Aguardar um pouco para o banco estar pronto
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient({
       datasources: {
@@ -408,6 +414,9 @@ async function testConnection() {
       }
     });
 
+    // Testar conexão básica primeiro
+    await prisma.$connect();
+    
     const userCount = await prisma.cp_usuarios.count();
     const schoolCount = await prisma.cp_escolas.count();
     
@@ -417,6 +426,70 @@ async function testConnection() {
     await prisma.$disconnect();
   } catch (error) {
     console.error('❌ Erro no teste de conexão:', error.message);
+    console.log('ℹ️ Verifique se as tabelas foram criadas corretamente');
+  }
+}
+
+async function insertDefaultData() {
+  console.log('📝 Inserindo dados padrão...');
+  
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const bcrypt = require('bcryptjs');
+    const prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: `postgresql://${DATABASE_CONFIG.username}:${DATABASE_CONFIG.password}@${DATABASE_CONFIG.host}:${DATABASE_CONFIG.port}/${DATABASE_CONFIG.dbName}`
+        }
+      }
+    });
+
+    // Inserir escola padrão
+    const escolaDefault = await prisma.cp_escolas.upsert({
+      where: { cp_ec_id: 1 },
+      update: {},
+      create: {
+        cp_ec_nome: 'Escola Padrão',
+        cp_ec_responsavel: 'Administrador',
+        cp_ec_data_cadastro: new Date(),
+        cp_ec_endereco_cidade: 'Cidade Padrão',
+        cp_ec_excluido: false
+      }
+    });
+
+    // Inserir curso padrão
+    const cursoDefault = await prisma.cp_curso.upsert({
+      where: { cp_curso_id: 1 },
+      update: {},
+      create: {
+        cp_nome_curso: 'Curso Básico'
+      }
+    });
+
+    // Inserir usuário administrador
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const adminUser = await prisma.cp_usuarios.upsert({
+      where: { cp_login: 'admin' },
+      update: {},
+      create: {
+        cp_nome: 'Administrador',
+        cp_email: 'admin@cipex.com',
+        cp_login: 'admin',
+        cp_password: hashedPassword,
+        cp_tipo_user: 1,
+        cp_cpf: '000.000.000-00',
+        cp_datanascimento: new Date('1990-01-01'),
+        cp_escola_id: escolaDefault.cp_ec_id,
+        cp_excluido: 0
+      }
+    });
+
+    console.log('✅ Dados padrão inseridos com sucesso');
+    console.log(`👤 Usuário admin criado - Login: admin, Senha: admin123`);
+    
+    await prisma.$disconnect();
+  } catch (error) {
+    console.error('❌ Erro ao inserir dados padrão:', error.message);
   }
 }
 
@@ -436,6 +509,9 @@ async function main() {
     await installPrisma();
     console.log('');
     
+    await insertDefaultData();
+    console.log('');
+    
     await testConnection();
     console.log('');
 
@@ -446,11 +522,14 @@ async function main() {
     console.log(`   Banco: ${DATABASE_CONFIG.dbName}`);
     console.log(`   Usuário: ${DATABASE_CONFIG.username}`);
     console.log(`   Senha: ${DATABASE_CONFIG.password}`);
+    console.log('\n👤 Login padrão:');
+    console.log(`   Usuário: admin`);
+    console.log(`   Senha: admin123`);
     console.log('\n🚀 Execute "node index.js" para iniciar o servidor!');
 
   } catch (error) {
     console.error('\n❌ Setup falhou:', error.message);
-    console.error('Verifique se o PostgreSQL está rodando e a senha do postgres está correta (admin)');
+    console.error('Verifique se o PostgreSQL está rodando e as configurações estão corretas');
     process.exit(1);
   }
 }
