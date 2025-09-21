@@ -38,7 +38,8 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://localhost:5000',
   'http://192.168.2.3:3000',
-  'https://4833413e-da9a-4416-85e7-98bc908816a9-00-2fw2ufauj31b5.janeway.replit.dev',
+  `https://${process.env.REPLIT_DEV_DOMAIN}`,
+  `http://${process.env.REPLIT_DEV_DOMAIN}`,
   'portal.cipex.com.br',
   'pteste.cipex.com.br'
 ];
@@ -64,7 +65,7 @@ app.use(bodyParser.json());
 
 app.use((req, res, next) => {
   console.log('Request URL:', req.url);
-  console.log('Request Headers:', req.headers);
+  console.log('Request Method:', req.method);
   next();
 });
 
@@ -78,6 +79,27 @@ const logError = (error) => {
     }
   });
 };
+
+// Rota de status da API
+app.get('/', async (req, res) => {
+  try {
+    // Testar conexão com o banco
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status: 'API funcionando',
+      database: 'PostgreSQL conectado',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'API funcionando',
+      database: 'Erro de conexão',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // Rota para login
 app.post('/login', async (req, res) => {
