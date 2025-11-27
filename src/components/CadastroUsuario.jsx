@@ -67,7 +67,7 @@ const CadastroUsuarioModal = ({ userId }) => {
 
     useEffect(() => {
         if (userId) {
-            axios.get(`${API_BASE_URL}/users/${userId}`)
+            axios.get(`${API_BASE_URL}/usuarios/${userId}`)
                 .then(response => {
                     setUserData(response.data); // Preenche o formulário
 
@@ -131,7 +131,7 @@ const CadastroUsuarioModal = ({ userId }) => {
         try {
             if (userId) {
                 // Modo de edição: Enviar como JSON, pois o backend espera JSON e não FormData
-                const response = await axios.put(`${API_BASE_URL}/edit-user/${userId}`, userData, {
+                const response = await axios.put(`${API_BASE_URL}/usuarios/${userId}`, userData, {
                     headers: { "Content-Type": "application/json" }, // Alterado para JSON
                 });
 
@@ -155,7 +155,7 @@ const CadastroUsuarioModal = ({ userId }) => {
                 });
 
 
-                const response = await axios.post(`${API_BASE_URL}/register`, formData, {
+                const response = await axios.post(`${API_BASE_URL}/auth/register`, formData, {
                     headers: { "Content-Type": "multipart/form-data" }, // Mantém para cadastro
                 });
 

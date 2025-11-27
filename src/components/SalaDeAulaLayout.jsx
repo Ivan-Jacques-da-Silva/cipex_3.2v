@@ -34,7 +34,7 @@ const SalaDeAula = () => {
         try {
             const schoolId = localStorage.getItem("schoolId");
             const userId = localStorage.getItem("userId");
-            const response = await axios.get(`${API_BASE_URL}/turmasComAlunos`);
+            const response = await axios.get(`${API_BASE_URL}/turmas/com-alunos`);
             const filteredTurmas = response.data.filter(
                 (turma) =>
                     turma.cp_tr_id_escola === parseInt(schoolId) &&
@@ -52,7 +52,7 @@ const SalaDeAula = () => {
             const alunosResponse = await axios.get(`${API_BASE_URL}/turmas/${turmaId}/alunos`);
             setAlunos(alunosResponse.data);
 
-            const chamadasResponse = await axios.get(`${API_BASE_URL}/chamadas/turma/${turmaId}`);
+            const chamadasResponse = await axios.get(`${API_BASE_URL}/notas/chamadas/turma/${turmaId}`);
             setHistoricoChamadas(chamadasResponse.data);
         } catch (error) {
             console.error("Erro ao carregar dados da turma:", error);
@@ -62,7 +62,7 @@ const SalaDeAula = () => {
 
     const atualizarHistorico = async () => {
         try {
-            const chamadasResponse = await axios.get(`${API_BASE_URL}/chamadas/turma/${selectedTurma}`);
+            const chamadasResponse = await axios.get(`${API_BASE_URL}/notas/chamadas/turma/${selectedTurma}`);
             setHistoricoChamadas(chamadasResponse.data);
         } catch (error) {
             console.error("Erro ao atualizar histórico de chamadas:", error);
@@ -84,7 +84,7 @@ const SalaDeAula = () => {
             const formattedDate = currentDate.toISOString().split('T')[0];
             const formattedTime = currentDate.toTimeString().split(' ')[0];
 
-            await axios.put(`${API_BASE_URL}/chamadas/${chamadaId}`, {
+            await axios.put(`${API_BASE_URL}/notas/chamadas/${chamadaId}`, {
                 data: formattedDate,
                 hora: formattedTime,
                 status,

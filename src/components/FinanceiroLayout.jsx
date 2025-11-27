@@ -50,7 +50,7 @@ const Financeiro = () => {
                         : newStatus;
 
             const response = await axios.put(
-                `${API_BASE_URL}/update-status/${selectedParcela.cp_mtPar_id}`,
+                `${API_BASE_URL}/financeiro/update-status/${selectedParcela.cp_mtPar_id}`,
                 { status: statusToSave }
             );
 
@@ -101,7 +101,7 @@ const Financeiro = () => {
             const schoolId = localStorage.getItem('schoolId');
             const userId = localStorage.getItem('userId');
 
-            let url = `${API_BASE_URL}/financeiroParcelas`;
+            let url = `${API_BASE_URL}/financeiro/parcelas`;
 
             // Aplicar filtros baseados no tipo de usuário
             switch (userType) {

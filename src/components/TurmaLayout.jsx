@@ -3,6 +3,8 @@ import { Icon } from "@iconify/react";
 import { API_BASE_URL } from "./config";
 import { Link } from "react-router-dom";
 import { Modal, Button, Card, Col, Row } from "react-bootstrap";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
 
 const Turmas = () => {
@@ -36,6 +38,9 @@ const Turmas = () => {
         setLoading(true);
         try {
             const response = await fetch(`${API_BASE_URL}/turmas`);
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
             const data = await response.json();
             
             let turmasFiltradas = data.filter(turma => turma.cp_tr_id_escola == schoolId);
@@ -66,23 +71,31 @@ const Turmas = () => {
 
     const handleDelete = async (turmaId) => {
         try {
-            await fetch(`${API_BASE_URL}/delete-turma/${turmaId}`, {
-                method: "DELETE",
-            });
+            const resp = await fetch(`${API_BASE_URL}/turmas/${turmaId}`, { method: "DELETE" });
+            if (!resp.ok) {
+                const msg = await resp.text();
+                toast.error(msg || "Erro ao excluir turma");
+                return;
+            }
+            toast.success("Turma excluída com sucesso");
             fetchTurmas();
         } catch (error) {
             console.error("Erro ao excluir turma:", error);
+            toast.error("Erro ao excluir turma");
         }
     };
 
     const handleConfirmarExclusao = async () => {
         if (turmaParaExcluir) {
             try {
-                await fetch(
-                    `${API_BASE_URL}/delete-turma/${turmaParaExcluir.cp_tr_id}`,
-                    { method: "DELETE" }
-                );
-                fetchTurmas();
+                const resp = await fetch(`${API_BASE_URL}/turmas/${turmaParaExcluir.cp_tr_id}`, { method: "DELETE" });
+                if (!resp.ok) {
+                    const msg = await resp.text();
+                    toast.error(msg || "Erro ao excluir turma");
+                } else {
+                    toast.success("Turma excluída com sucesso");
+                    fetchTurmas();
+                }
             } catch (error) {
                 console.error("Erro ao excluir turma:", error);
             } finally {
@@ -146,7 +159,7 @@ const Turmas = () => {
                 cursoNome: curso.cp_nome_curso,
             }));
 
-            const responseAlunos = await axios.get(`${API_BASE_URL}/escola/alunos/${turma.cp_tr_id_escola}`);
+            const responseAlunos = await axios.get(`${API_BASE_URL}/turmas/escola/alunos/${turma.cp_tr_id_escola}`);
             const alunos = responseAlunos.data;
             const alunosDaTurma = alunos.filter(aluno => aluno.cp_turma_id === turma.cp_tr_id);
             setAlunosFiltrados(alunosDaTurma);
@@ -165,6 +178,7 @@ const Turmas = () => {
 
     return (
         <div className="card h-100 p-0 radius-12">
+            <ToastContainer />
             {userType === 5 ? (
                 <div className="p-4">
                     {turmas.length > 0 ? (

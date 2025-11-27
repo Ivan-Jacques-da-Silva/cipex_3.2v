@@ -133,7 +133,7 @@ const Treinamento = () => {
     if (userType !== 1) {
       const professorId = localStorage.getItem("userId");
       axios
-        .get(`${API_BASE_URL}/cp_turmas/professor/${professorId}`)
+        .get(`${API_BASE_URL}/turmas/professor/${professorId}`)
         .then((res) => {
           const cursosDoProfessor = res.data.map(
             (turma) => turma.cp_tr_curso_id,
@@ -186,7 +186,7 @@ const Treinamento = () => {
         // Professor: filtra antes de atualizar o estado
         const professorId = localStorage.getItem("userId");
         const resTurmas = await axios.get(
-          `${API_BASE_URL}/cp_turmas/professor/${professorId}`,
+          `${API_BASE_URL}/turmas/professor/${professorId}`,
         );
         const cursosDoProfessor = resTurmas.data.map(
           (turma) => turma.cp_tr_curso_id,

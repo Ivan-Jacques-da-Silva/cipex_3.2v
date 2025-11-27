@@ -1,0 +1,41 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model cp_usuarios {
+  cp_id                  Int       @id @default(autoincrement())
+  cp_nome                String    @db.VarChar(80)
+  cp_email               String    @db.VarChar(45)
+  cp_login               String    @db.VarChar(45)
+  cp_password            String    @db.VarChar(200)
+  cp_tipo_user           Int
+  cp_excluido            Int       @default(0)
+
+  @@map("cp_usuarios")
+}
+
+model cp_escolas {
+  cp_ec_id               Int       @id @default(autoincrement())
+  cp_ec_nome             String?   @db.VarChar(100)
+  cp_ec_excluido         Boolean   @default(false)
+
+  @@map("cp_escolas")
+}
+
+model cp_turmas {
+  cp_tr_id               Int       @id @default(autoincrement())
+  cp_tr_nome             String?   @db.VarChar(100)
+  cp_tr_id_professor     Int
+  cp_tr_id_escola        Int
+  cp_tr_excluido         Boolean   @default(false)
+
+  @@map("cp_turmas")
+}

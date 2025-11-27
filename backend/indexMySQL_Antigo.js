@@ -51,6 +51,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Garante que diretórios de upload existem (evita falhas silenciosas do multer)
+const ensureDir = (dirPath) => {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+  } catch (e) {
+    console.error('Erro ao criar diretório:', dirPath, e);
+  }
+};
+
 // Configuração da conexão com o banco de dados
 
 // const db = mysql.createConnection({
@@ -742,24 +751,55 @@ const uploadPDF = multer({ storage: pdfStorage }).fields([
   { name: 'pdf3', maxCount: 1 }
 ]);
 
+const AUDIO_DIR = path.join(__dirname, 'AudiosCurso');
+ensureDir(AUDIO_DIR);
+
+const sanitizeBaseName = (name) => {
+  const base = path.basename(name);
+  return base
+    .replace(/[\\/]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\-\.\s\(\)\[\]]/g, '')
+    .trim();
+};
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'AudioCurso'));
+    // Usa a pasta existente 'AudiosCurso' para armazenar áudios
+    cb(null, AUDIO_DIR);
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname); // SALVA EXATAMENTE COMO ENVIOU
+    const safe = sanitizeBaseName(file.originalname);
+    cb(null, safe); // salva com nome sanitizado
   }
 });
 
 // Servindo arquivos estáticos da pasta 'MaterialCurso'
 app.use('/MaterialCurso', express.static(path.join(__dirname, 'MaterialCurso')));
-// Servir os arquivos estáticos da pasta AudioCurso
-app.use('/audios', express.static(path.join(__dirname, 'AudioCurso')));
+// Servir os arquivos estáticos da pasta AudiosCurso
+app.use('/audios', express.static(AUDIO_DIR));
+// Compatibilidade com caminhos antigos armazenados como '/AudioCurso/<arquivo>'
+app.use('/AudioCurso', express.static(AUDIO_DIR));
+// Montagem padrão direta com o nome da pasta física
+app.use('/AudiosCurso', express.static(AUDIO_DIR));
 
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    files: 500,            // até 500 arquivos por requisição
+    fileSize: 200 * 1024 * 1024 // até 200 MB por arquivo
+  }
+});
 // Rota para lidar com o upload de arquivos de áudio
-app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) => {
+const uploadAudios = upload.array('audios', 500);
+
+app.post('/register-audio/:cursoId', (req, res) => {
+  uploadAudios(req, res, async (multerErr) => {
+    if (multerErr) {
+      console.error('Erro no upload (multer):', multerErr);
+      return res.status(400).send({ msg: 'Erro no upload de áudios', error: multerErr.message });
+    }
   const cursoId = req.params.cursoId; // Obtém o ID do curso dos parâmetros da rota
   const audios = req.files; // Obtém os arquivos de áudio enviados
 
@@ -769,13 +809,14 @@ app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) =>
   }
 
   try {
+    console.log('UPLOAD register-audio -> files:', audios?.length || 0, 'dir:', AUDIO_DIR);
     const audioPromises = audios.map(async audio => {
       const nomeOriginal = audio.originalname;
         const nomeSalvo   = audio.filename;
       const newAudio = {
         cp_curso_id: cursoId,
         cp_nome_audio: nomeOriginal,
-        cp_arquivo_audio: `/AudioCurso/${nomeSalvo}`
+        cp_arquivo_audio: `/AudiosCurso/${nomeSalvo}`
       };
 
 
@@ -794,6 +835,13 @@ app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) =>
       });
     });
 
+    // Verifica se pelo menos o primeiro arquivo existe fisicamente
+    try {
+      if (audios[0]?.path && !fs.existsSync(audios[0].path)) {
+        console.error('Arquivo não encontrado após upload:', audios[0].path);
+      }
+    } catch {}
+
     // Aguarda o término de todas as consultas ao banco de dados
     await Promise.all(audioPromises);
 
@@ -803,6 +851,7 @@ app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) =>
     console.error('Erro ao salvar arquivo(s) de áudio:', error);
     res.status(500).send({ msg: 'Erro ao salvar arquivo(s) de áudio' });
   }
+  });
 });
 
 // Rota para atualizar os áudios de um curso, removendo os existentes e adicionando novos (somente se novos forem enviados)
@@ -810,7 +859,7 @@ app.post('/register-audio/:cursoId', upload.array('audios'), async (req, res) =>
 const inserirNovosAudios = async (novosAudios, cursoId, res) => {
   const audioPromises = novosAudios.map((audio) => {
     const nomeArquivoOriginal = audio.originalname;
-    const filePath = `AudioCurso/${nomeArquivoOriginal}`;
+    const filePath = `/AudiosCurso/${nomeArquivoOriginal}`;
 
     const newAudio = {
       cp_curso_id: cursoId,
@@ -941,7 +990,13 @@ app.put('/update-curso/:cursoId', (req, res) => {
 
 // Rota para atualizar os áudios de um curso separadamente
 // Rota para atualizar os áudios de um curso separadamente
-app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
+const updateAudios = upload.array('audios', 500);
+app.put('/update-audio/:cursoId', (req, res) => {
+  updateAudios(req, res, async (multerErr) => {
+    if (multerErr) {
+      console.error('Erro no upload (multer):', multerErr);
+      return res.status(400).send({ msg: 'Erro no upload de áudios', error: multerErr.message });
+    }
   const cursoId     = req.params.cursoId;
   const novosAudios = req.files;
 
@@ -967,10 +1022,15 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
           );
         });
       }
-      // remove arquivos do disco
+      // remove arquivos do disco (compatível com caminhos antigos '/AudioCurso/...')
       for (const audio of registros) {
-        try { await fs.promises.unlink(path.join(__dirname, String(audio.cp_arquivo_audio || '').replace(/^[/\\]+/, ''))); }
-        catch {}
+        try {
+          const rel = String(audio.cp_arquivo_audio || '')
+            .replace(/^[/\\]+/, '')
+            .replace(/^AudioCurso([/\\])/, 'AudiosCurso$1');
+          const full = path.join(__dirname, rel);
+          await fs.promises.unlink(full);
+        } catch {}
       }
       // deleta registros do cp_audio
       await new Promise((resolve, reject) => {
@@ -990,6 +1050,7 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
 
   // Se enviou áudios, remove os antigos e salva os novos
   try {
+    console.log('UPLOAD update-audio -> files:', novosAudios?.length || 0, 'dir:', AUDIO_DIR);
     // busca registros antigos pra deletar do disco e do banco
     const registros = await new Promise((resolve, reject) => {
       db.query(
@@ -1009,10 +1070,15 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
         );
       });
     }
-    // remove arquivos do disco
+    // remove arquivos do disco (compatível com caminhos antigos '/AudioCurso/...')
     for (const audio of registros) {
-      try { await fs.promises.unlink(path.join(__dirname, String(audio.cp_arquivo_audio || '').replace(/^[/\\]+/, ''))); }
-      catch {}
+      try {
+        const rel = String(audio.cp_arquivo_audio || '')
+          .replace(/^[/\\]+/, '')
+          .replace(/^AudioCurso([/\\])/, 'AudiosCurso$1');
+        const full = path.join(__dirname, rel);
+        await fs.promises.unlink(full);
+      } catch {}
     }
     // deleta registros do cp_audio
     await new Promise((resolve, reject) => {
@@ -1029,7 +1095,7 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
       const newAudio     = {
         cp_curso_id:     cursoId,
         cp_nome_audio:   nomeOriginal,
-        cp_arquivo_audio: `/AudioCurso/${nomeSalvo}`
+        cp_arquivo_audio: `/AudiosCurso/${nomeSalvo}`
       };
       await new Promise((resolve, reject) => {
         db.query('INSERT INTO cp_audio SET ?', newAudio, (err, result) => {
@@ -1049,6 +1115,7 @@ app.put('/update-audio/:cursoId', upload.array('audios'), async (req, res) => {
     logError(err);
     return res.status(500).send({ msg: 'Erro ao atualizar os áudios.' });
   }
+  });
 });
 
 
@@ -1160,7 +1227,7 @@ app.get('/curso-id-da-turma/:turmaId', (req, res) => {
 // });
 app.get('/audios-curso/:cursoId', (req, res) => {
   const cursoId = req.params.cursoId;
-  db.query('SELECT cp_audio_id, cp_nome_audio FROM cp_audio WHERE cp_curso_id = ?', cursoId, (err, result) => {
+  db.query('SELECT cp_audio_id, cp_nome_audio, cp_arquivo_audio FROM cp_audio WHERE cp_curso_id = ?', cursoId, (err, result) => {
     if (err) {
       console.error('Erro ao buscar os áudios do curso:', err);
       res.status(500).send({ msg: 'Erro ao buscar os áudios do curso' });
@@ -1172,8 +1239,8 @@ app.get('/audios-curso/:cursoId', (req, res) => {
 
 app.get('/audio/:nomeAudio', (req, res) => {
   const nomeAudio = req.params.nomeAudio;
-  // Monta o caminho usando o diretório relativo, sem a barra inicial
-  const filePath = path.join(__dirname, 'AudioCurso', nomeAudio);
+  // Busca o arquivo na pasta correta 'AudiosCurso'
+  const filePath = path.join(AUDIO_DIR, nomeAudio);
   res.sendFile(filePath);
 });
 
@@ -3033,4 +3100,5 @@ app.delete('/notas/:notaId', (req, res) => {
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+  console.log('AUDIO_DIR em uso:', AUDIO_DIR);
 });

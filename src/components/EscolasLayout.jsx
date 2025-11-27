@@ -41,7 +41,7 @@ const Escolas = () => {
     // Função para confirmar a exclusão
     const handleConfirmDelete = async () => {
         try {
-            await fetch(`${API_BASE_URL}/delete-escola/${idEscolaParaExcluir}`, {
+            await fetch(`${API_BASE_URL}/escolas/${idEscolaParaExcluir}`, {
                 method: "DELETE",
             });
             setMostrarModalExclusao(false);

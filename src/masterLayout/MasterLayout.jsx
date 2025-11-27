@@ -128,7 +128,7 @@ const MasterLayout = ({ children }) => {
     if (!userId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+      const response = await fetch(`${API_BASE_URL}/usuarios/${userId}`);
       if (response.ok) {
         const userData = await response.json();
         setUserInfo(userData);
@@ -145,8 +145,19 @@ const MasterLayout = ({ children }) => {
 
   const handleUserUpdate = (updatedUser) => {
     setUserInfo(updatedUser);
-    // Força atualização da interface
-    window.location.reload();
+    // Atualiza dados do usuário sem recarregar a página
+    console.log('MasterLayout: usuário atualizado, evitando reload da página');
+  };
+
+  // Normaliza a URL da foto de perfil vindas de diferentes formatos
+  const getProfilePhotoUrl = () => {
+    const stored = localStorage.getItem('userProfilePhoto');
+    const value = stored || userInfo?.cp_foto_perfil || '';
+    if (!value) return 'assets/images/user.png';
+    if (value.startsWith('http')) return value;
+    if (value.startsWith('/')) return `${API_BASE_URL}${value}`;
+    // caso antigo: apenas nome do arquivo
+    return `${API_BASE_URL}/FotoPerfil/${value}`;
   };
 
   const handleLogout = () => {
@@ -413,11 +424,7 @@ const MasterLayout = ({ children }) => {
                     data-bs-toggle="dropdown"
                   >
                     <img
-                      src={
-                        localStorage.getItem("userProfilePhoto")
-                          ? `${API_BASE_URL}/${localStorage.getItem("userProfilePhoto")}`
-                          : "assets/images/user.png"
-                      }
+                      src={getProfilePhotoUrl()}
                       alt="image_user"
                       className="w-40-px h-40-px object-fit-cover rounded-circle"
                     />

@@ -32,7 +32,7 @@ const LoginTela = () => {
 
     const handleClickLogin = async (values) => {
         try {
-            const response = await Axios.post(`${API_BASE_URL}/login`, values);
+            const response = await Axios.post(`${API_BASE_URL}/auth/login`, values);
             console.log('Resposta recebida:', response.data);
             setIsLoggingIn(true);
 
@@ -150,12 +150,12 @@ const LoginTela = () => {
                                         onKeyPress={handleKeyPress}
                                     />
                                 </div>
-                                {/* <span
+                                <span
                                     className="toggle-password cursor-pointer position-absolute end-0 top-50 translate-middle-y me-16 text-secondary-light"
                                     onClick={() => setShowPassword(!showPassword)}
                                 >
                                     <Icon icon={showPassword ? 'mdi:eye-off' : 'mdi:eye'} />
-                                </span> */}
+                                </span>
                             </div>
                             <div className="">
                                 {/* <div className="d-flex justify-content-between gap-2">

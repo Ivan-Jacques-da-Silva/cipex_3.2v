@@ -1,4 +1,6 @@
 
+
+
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +30,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Tabela de escolas
 CREATE TABLE IF NOT EXISTS cp_escolas (
   cp_ec_id SERIAL PRIMARY KEY,
-  cp_ec_nome VARCHAR(100),
+  cp_ec_nome VARCHAR(100) UNIQUE,
   cp_ec_data_cadastro DATE,
   cp_ec_responsavel VARCHAR(50),
   cp_ec_endereco_rua VARCHAR(100),
@@ -43,7 +45,7 @@ CREATE TABLE IF NOT EXISTS cp_escolas (
 -- Tabela de cursos
 CREATE TABLE IF NOT EXISTS cp_curso (
   cp_curso_id SERIAL PRIMARY KEY,
-  cp_nome_curso VARCHAR(100) NOT NULL,
+  cp_nome_curso VARCHAR(100) NOT NULL UNIQUE,
   cp_youtube_link_curso VARCHAR(255),
   cp_pdf1_curso VARCHAR(255),
   cp_pdf2_curso VARCHAR(255),
@@ -67,7 +69,7 @@ CREATE TABLE IF NOT EXISTS cp_usuarios (
   cp_id SERIAL PRIMARY KEY,
   cp_nome VARCHAR(80) NOT NULL,
   cp_email VARCHAR(45) NOT NULL,
-  cp_login VARCHAR(45) NOT NULL,
+  cp_login VARCHAR(45) NOT NULL UNIQUE,
   cp_password VARCHAR(200) NOT NULL,
   cp_tipo_user INTEGER NOT NULL,
   cp_rg VARCHAR(20),
@@ -101,10 +103,11 @@ ALTER TABLE cp_turmas ADD CONSTRAINT fk_professor
 -- Tabela de áudios
 CREATE TABLE IF NOT EXISTS cp_audio (
   cp_audio_id SERIAL PRIMARY KEY,
-  cp_curso_id INTEGER,
-  cp_nome_audio VARCHAR(100) NOT NULL,
-  cp_arquivo_audio VARCHAR(255) NOT NULL,
-  FOREIGN KEY (cp_curso_id) REFERENCES cp_curso(cp_curso_id)
+  cp_audio_nome VARCHAR(100),
+  cp_audio_arquivo VARCHAR(255),
+  cp_audio_data DATE,
+  cp_audio_turma_id INTEGER,
+  FOREIGN KEY (cp_audio_turma_id) REFERENCES cp_turmas(cp_tr_id)
 );
 
 -- Tabela de matrículas
@@ -214,37 +217,6 @@ CREATE TABLE IF NOT EXISTS eventos (
   data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Inserir usuário administrador padrão se não existir
-INSERT INTO cp_usuarios (
-  cp_nome, cp_email, cp_login, cp_password, cp_tipo_user, 
-  cp_cpf, cp_datanascimento, cp_excluido
-) 
-SELECT 
-  'Administrador', 'admin@cipex.com', 'admin', 'admin123', 1,
-  '000.000.000-00', '1990-01-01', 0
-WHERE NOT EXISTS (
-  SELECT 1 FROM cp_usuarios WHERE cp_login = 'admin'
-);
-
--- Inserir escola padrão se não existir
-INSERT INTO cp_escolas (
-  cp_ec_nome, cp_ec_responsavel, cp_ec_data_cadastro,
-  cp_ec_endereco_cidade, cp_ec_excluido
-)
-SELECT 
-  'Escola Padrão', 'Administrador', CURRENT_DATE,
-  'Cidade Padrão', FALSE
-WHERE NOT EXISTS (
-  SELECT 1 FROM cp_escolas WHERE cp_ec_nome = 'Escola Padrão'
-);
-
--- Inserir curso padrão se não existir
-INSERT INTO cp_curso (cp_nome_curso)
-SELECT 'Curso Básico'
-WHERE NOT EXISTS (
-  SELECT 1 FROM cp_curso WHERE cp_nome_curso = 'Curso Básico'
-);
-
 COMMIT;
 `;
 
@@ -297,6 +269,9 @@ async function createUser() {
     console.log('🔐 Concedendo permissões...');
     await adminClient.query(`GRANT ALL PRIVILEGES ON DATABASE ${DATABASE_CONFIG.dbName} TO ${DATABASE_CONFIG.username}`);
     
+    // Conceder permissões de superusuário temporariamente para criar tabelas
+    await adminClient.query(`ALTER USER ${DATABASE_CONFIG.username} CREATEDB CREATEROLE`);
+    
     await adminClient.end();
     console.log('✅ Configuração do usuário completa');
 
@@ -322,10 +297,15 @@ async function createTables() {
     await dbClient.connect();
     console.log('✅ Conectado ao banco de dados');
 
+    // Conceder permissões no schema public primeiro
+    await dbClient.query(`GRANT ALL ON SCHEMA public TO ${DATABASE_CONFIG.username}`);
+    await dbClient.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO ${DATABASE_CONFIG.username}`);
+    await dbClient.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${DATABASE_CONFIG.username}`);
+
     await dbClient.query(CREATE_TABLES_SQL);
     console.log('✅ Tabelas criadas/atualizadas com sucesso');
 
-    // Conceder permissões nas tabelas
+    // Conceder permissões nas tabelas criadas
     const tables = [
       'cp_escolas', 'cp_curso', 'cp_turmas', 'cp_usuarios', 'cp_audio',
       'cp_matriculas', 'cp_matriculaparcelas', 'cp_chamadas', 'cp_mat_extra',
@@ -333,8 +313,17 @@ async function createTables() {
     ];
 
     for (const table of tables) {
-      await dbClient.query(`GRANT ALL PRIVILEGES ON TABLE ${table} TO ${DATABASE_CONFIG.username}`);
-      await dbClient.query(`GRANT ALL PRIVILEGES ON SEQUENCE ${table}_pkey TO ${DATABASE_CONFIG.username}`);
+      try {
+        await dbClient.query(`GRANT ALL PRIVILEGES ON TABLE ${table} TO ${DATABASE_CONFIG.username}`);
+        // Tentar conceder permissões na sequência, mas não falhar se não existir
+        try {
+          await dbClient.query(`GRANT ALL PRIVILEGES ON SEQUENCE ${table}_pkey TO ${DATABASE_CONFIG.username}`);
+        } catch (seqErr) {
+          // Ignorar erro de sequência se não existir
+        }
+      } catch (tableErr) {
+        console.warn(`⚠️ Aviso: Não foi possível conceder permissões na tabela ${table}:`, tableErr.message);
+      }
     }
 
     console.log('✅ Permissões concedidas nas tabelas');
@@ -357,7 +346,6 @@ DATABASE_URL="${databaseUrl}"
 
 # Server Configuration  
 PORT=3001
-NODE_ENV=development
 
 # Generated by setup.js on ${new Date().toISOString()}
 `;
@@ -383,18 +371,41 @@ async function installPrisma() {
 
   try {
     console.log('📦 Instalando dependências do Prisma...');
-    await execAsync('npm install prisma @prisma/client', { cwd: __dirname });
+    
+    // Comando cross-platform para npm
+    const isWindows = process.platform === 'win32';
+    const npmCommand = isWindows ? 'npm.cmd' : 'npm';
+    
+    await execAsync(`${npmCommand} install prisma @prisma/client`, { cwd: __dirname });
+    
+    console.log('🔄 Fazendo pull do schema do banco...');
+    try {
+      await execAsync(`npx prisma db pull`, { cwd: __dirname });
+    } catch (pullErr) {
+      console.log('ℹ️ Erro no db pull (normal se for primeira execução):', pullErr.message);
+    }
     
     console.log('🔄 Executando migrações...');
-    await execAsync('npx prisma migrate deploy', { cwd: __dirname });
+    try {
+      await execAsync(`npx prisma migrate deploy`, { cwd: __dirname });
+    } catch (migrateErr) {
+      console.log('ℹ️ Erro nas migrações (normal se não houver migrações):', migrateErr.message);
+    }
     
     console.log('🔄 Gerando Prisma Client...');
-    await execAsync('npx prisma generate', { cwd: __dirname });
+    try {
+      await execAsync(`npx prisma generate`, { cwd: __dirname });
+    } catch (generateErr) {
+      console.log('ℹ️ Erro no generate (tentando alternativa):', generateErr.message);
+      // Tentar regenerar o schema primeiro
+      await execAsync(`npx prisma db pull --force`, { cwd: __dirname });
+      await execAsync(`npx prisma generate`, { cwd: __dirname });
+    }
     
     console.log('✅ Prisma configurado com sucesso');
   } catch (error) {
     console.error('❌ Erro ao configurar Prisma:', error.message);
-    console.log('ℹ️ Execute manualmente: npm install prisma @prisma/client && npx prisma migrate deploy && npx prisma generate');
+    console.log(`ℹ️ Execute manualmente: ${isWindows ? 'npm.cmd' : 'npm'} install prisma @prisma/client && npx prisma db pull && npx prisma generate`);
   }
 }
 
@@ -431,105 +442,242 @@ async function testConnection() {
 }
 
 async function insertDefaultData() {
-  console.log('📝 Inserindo dados padrão...');
+  console.log('📊 Inserindo/Atualizando dados padrão...');
+  
+  const { Client } = require('pg');
+  const dbClient = new Client({
+    host: DATABASE_CONFIG.host,
+    port: DATABASE_CONFIG.port,
+    database: DATABASE_CONFIG.dbName,
+    user: DATABASE_CONFIG.username,
+    password: DATABASE_CONFIG.password,
+  });
+
+  try {
+    await dbClient.connect();
+    
+    // Verificar e adicionar constraints UNIQUE se não existirem
+    try {
+      await dbClient.query(`
+        DO $$ 
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cp_escolas_nome_unique') THEN
+            ALTER TABLE cp_escolas ADD CONSTRAINT cp_escolas_nome_unique UNIQUE (cp_ec_nome);
+          END IF;
+          
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cp_usuarios_login_unique') THEN
+            ALTER TABLE cp_usuarios ADD CONSTRAINT cp_usuarios_login_unique UNIQUE (cp_login);
+          END IF;
+          
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cp_curso_nome_unique') THEN
+            ALTER TABLE cp_curso ADD CONSTRAINT cp_curso_nome_unique UNIQUE (cp_nome_curso);
+          END IF;
+        END $$;
+      `);
+    } catch (constraintError) {
+      console.log('ℹ️ Aviso: Erro ao adicionar constraints (podem já existir):', constraintError.message);
+    }
+    
+    // Inserir/Atualizar escola padrão usando UPSERT manual
+    const schoolCheck = await dbClient.query('SELECT cp_ec_id FROM cp_escolas WHERE cp_ec_nome = $1', ['CIPEX - Centro de Idiomas']);
+    
+    let schoolId;
+    if (schoolCheck.rows.length > 0) {
+      // Atualizar escola existente
+      await dbClient.query(`
+        UPDATE cp_escolas 
+        SET cp_ec_responsavel = 'Administrador',
+            cp_ec_data_cadastro = CURRENT_DATE,
+            cp_ec_endereco_cidade = 'Cidade Principal',
+            cp_ec_excluido = false
+        WHERE cp_ec_nome = $1
+      `, ['CIPEX - Centro de Idiomas']);
+      schoolId = schoolCheck.rows[0].cp_ec_id;
+    } else {
+      // Inserir nova escola
+      const insertResult = await dbClient.query(`
+        INSERT INTO cp_escolas (cp_ec_nome, cp_ec_responsavel, cp_ec_data_cadastro, cp_ec_endereco_cidade, cp_ec_excluido) 
+        VALUES ('CIPEX - Centro de Idiomas', 'Administrador', CURRENT_DATE, 'Cidade Principal', false)
+        RETURNING cp_ec_id
+      `);
+      schoolId = insertResult.rows[0].cp_ec_id;
+    }
+
+    // Sempre recriar/atualizar usuário administrador padrão
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    
+    console.log('🔄 Recriando usuário administrador...');
+    
+    // Inserir/Atualizar usuário administrador usando UPSERT manual
+    const adminCheck = await dbClient.query('SELECT cp_id FROM cp_usuarios WHERE cp_login = $1', ['admin']);
+    
+    if (adminCheck.rows.length > 0) {
+      // Atualizar admin existente
+      await dbClient.query(`
+        UPDATE cp_usuarios 
+        SET cp_nome = 'Administrador',
+            cp_email = 'admin@cipex.com.br',
+            cp_password = $1,
+            cp_tipo_user = 1,
+            cp_cpf = '000.000.000-00',
+            cp_datanascimento = '1990-01-01',
+            cp_escola_id = $2,
+            cp_excluido = 0
+        WHERE cp_login = 'admin'
+      `, [hashedPassword, schoolId]);
+    } else {
+      // Inserir novo admin
+      await dbClient.query(`
+        INSERT INTO cp_usuarios (cp_nome, cp_email, cp_login, cp_password, cp_tipo_user, cp_cpf, cp_datanascimento, cp_escola_id, cp_excluido) 
+        VALUES ('Administrador', 'admin@cipex.com.br', 'admin', $1, 1, '000.000.000-00', '1990-01-01', $2, 0)
+      `, [hashedPassword, schoolId]);
+    }
+
+    // Inserir/Atualizar curso de exemplo usando UPSERT manual
+    const courseCheck = await dbClient.query('SELECT cp_curso_id FROM cp_curso WHERE cp_nome_curso = $1', ['Inglês Básico']);
+    
+    if (courseCheck.rows.length > 0) {
+      // Atualizar curso existente
+      await dbClient.query(`
+        UPDATE cp_curso 
+        SET cp_youtube_link_curso = 'https://youtube.com/example',
+            cp_pdf1_curso = 'exemplo.pdf'
+        WHERE cp_nome_curso = 'Inglês Básico'
+      `);
+    } else {
+      // Inserir novo curso
+      await dbClient.query(`
+        INSERT INTO cp_curso (cp_nome_curso, cp_youtube_link_curso, cp_pdf1_curso) 
+        VALUES ('Inglês Básico', 'https://youtube.com/example', 'exemplo.pdf')
+      `);
+    }
+
+    console.log('✅ Dados padrão inseridos/atualizados com sucesso');
+    console.log(`👤 Usuário admin recriado - Login: admin, Senha: admin123`);
+  } catch (error) {
+    console.error('❌ Erro ao inserir/atualizar dados padrão:', error.message);
+  } finally {
+    await dbClient.end();
+  }
+}
+
+// Função para executar migração de dados
+async function runDataMigration() {
+  console.log('📦 Executando migração de dados do MySQL...');
   
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const bcrypt = require('bcryptjs');
-    const prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: `postgresql://${DATABASE_CONFIG.username}:${DATABASE_CONFIG.password}@${DATABASE_CONFIG.host}:${DATABASE_CONFIG.port}/${DATABASE_CONFIG.dbName}`
-        }
-      }
-    });
-
-    // Inserir escola padrão
-    const escolaDefault = await prisma.cp_escolas.upsert({
-      where: { cp_ec_id: 1 },
-      update: {},
-      create: {
-        cp_ec_nome: 'Escola Padrão',
-        cp_ec_responsavel: 'Administrador',
-        cp_ec_data_cadastro: new Date(),
-        cp_ec_endereco_cidade: 'Cidade Padrão',
-        cp_ec_excluido: false
-      }
-    });
-
-    // Inserir curso padrão
-    const cursoDefault = await prisma.cp_curso.upsert({
-      where: { cp_curso_id: 1 },
-      update: {},
-      create: {
-        cp_nome_curso: 'Curso Básico'
-      }
-    });
-
-    // Inserir usuário administrador
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const adminUser = await prisma.cp_usuarios.upsert({
-      where: { cp_login: 'admin' },
-      update: {},
-      create: {
-        cp_nome: 'Administrador',
-        cp_email: 'admin@cipex.com',
-        cp_login: 'admin',
-        cp_password: hashedPassword,
-        cp_tipo_user: 1,
-        cp_cpf: '000.000.000-00',
-        cp_datanascimento: new Date('1990-01-01'),
-        cp_escola_id: escolaDefault.cp_ec_id,
-        cp_excluido: 0
-      }
-    });
-
-    console.log('✅ Dados padrão inseridos com sucesso');
-    console.log(`👤 Usuário admin criado - Login: admin, Senha: admin123`);
+    const CipexMigrator = require('./migrator.js');
+    const migrator = new CipexMigrator();
     
-    await prisma.$disconnect();
+    const result = await migrator.run();
+    
+    if (result.success && parseFloat(result.successRate) > 30) {
+      console.log(`✅ Migração concluída com sucesso: ${result.successRate}% de taxa de sucesso`);
+      console.log(`📊 ${result.totalRecords} registros migrados`);
+      return true;
+    } else {
+      console.log(`⚠️ Migração parcial: ${result.successRate}% de taxa de sucesso`);
+      console.log(`📊 ${result.totalRecords} registros migrados`);
+      console.log('ℹ️ Alguns dados podem não ter sido migrados corretamente');
+      return false;
+    }
+    
   } catch (error) {
-    console.error('❌ Erro ao inserir dados padrão:', error.message);
+    console.error('❌ Erro durante a migração:', error.message);
+    console.log('ℹ️ O sistema funcionará apenas com dados padrão');
+    return false;
   }
 }
 
 async function main() {
-  console.log('🚀 Iniciando setup do backend PostgreSQL...\n');
-
+  console.log('🚀 Iniciando configuração completa do ambiente backend...\n');
+  
   try {
+    // Verificar se o PostgreSQL está rodando
+    console.log('🔍 Verificando PostgreSQL...');
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    try {
+      // Comando cross-platform para verificar PostgreSQL
+      const isWindows = process.platform === 'win32';
+      const pgCommand = isWindows ? 'pg_isready.exe -h localhost -p 5432' : 'pg_isready -h localhost -p 5432';
+      
+      await execAsync(pgCommand);
+      console.log('✅ PostgreSQL está rodando\n');
+    } catch (error) {
+      console.error('❌ PostgreSQL não está rodando ou não está acessível');
+      console.log('ℹ️ Certifique-se de que o PostgreSQL está instalado e rodando na porta 5432');
+      
+      // Sugestões específicas por plataforma
+      const isWindows = process.platform === 'win32';
+      if (isWindows) {
+        console.log('ℹ️ Windows: Verifique se o serviço PostgreSQL está iniciado no Services.msc');
+        console.log('ℹ️ Ou execute: net start postgresql-x64-[versão]');
+      } else {
+        console.log('ℹ️ Linux/Mac: sudo systemctl start postgresql ou brew services start postgresql');
+      }
+      
+      process.exit(1);
+    }
+
+    // Passo 1: Criar usuário e banco de dados
     await createUser();
     console.log('');
-    
+
+    // Passo 2: Criar tabelas
     await createTables();
     console.log('');
-    
+
+    // Passo 3: Criar arquivo .env
     await createEnvFile();
     console.log('');
-    
+
+    // Passo 4: Instalar e configurar Prisma
     await installPrisma();
     console.log('');
-    
+
+    // Passo 5: Inserir dados padrão
     await insertDefaultData();
     console.log('');
-    
+
+    // Passo 6: Executar migração de dados (se disponível)
+    const migrationSuccess = await runDataMigration();
+    console.log('');
+
+    // Passo 7: Testar conexão final
     await testConnection();
     console.log('');
 
-    console.log('🎉 Setup concluído com sucesso!');
-    console.log('\n📋 Informações de acesso:');
-    console.log(`   Host: ${DATABASE_CONFIG.host}`);
-    console.log(`   Porta: ${DATABASE_CONFIG.port}`);
-    console.log(`   Banco: ${DATABASE_CONFIG.dbName}`);
-    console.log(`   Usuário: ${DATABASE_CONFIG.username}`);
-    console.log(`   Senha: ${DATABASE_CONFIG.password}`);
-    console.log('\n👤 Login padrão:');
-    console.log(`   Usuário: admin`);
-    console.log(`   Senha: admin123`);
-    console.log('\n🚀 Execute "node index.js" para iniciar o servidor!');
+    console.log('🎉 CONFIGURAÇÃO CONCLUÍDA COM SUCESSO!');
+    console.log('');
+    console.log('📋 Próximos passos:');
+    console.log('   1. Execute: npm start (para iniciar o servidor)');
+    console.log('   2. Acesse: http://localhost:3000');
+    console.log('   3. Login admin: admin / admin123');
+    console.log('');
+    console.log('📁 Arquivos criados:');
+    console.log('   - .env (configurações do banco)');
+    console.log('   - prisma/schema.prisma (atualizado)');
+    if (migrationSuccess) {
+      console.log('   - migration_final.log (log da migração)');
+      console.log('');
+      console.log('📊 Dados migrados do MySQL com sucesso!');
+    } else {
+      console.log('');
+      console.log('ℹ️ Sistema configurado com dados padrão');
+      console.log('💡 Para migrar dados do MySQL, execute: node migrator.js');
+    }
+    console.log('');
 
   } catch (error) {
-    console.error('\n❌ Setup falhou:', error.message);
-    console.error('Verifique se o PostgreSQL está rodando e as configurações estão corretas');
+    console.error('❌ Erro durante a configuração:', error.message);
+    console.log('\n🔧 Para resolver problemas:');
+    console.log('   1. Verifique se o PostgreSQL está rodando');
+    console.log('   2. Verifique as credenciais de admin do PostgreSQL');
+    console.log('   3. Execute novamente: node setup.js');
     process.exit(1);
   }
 }

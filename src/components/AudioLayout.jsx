@@ -33,7 +33,7 @@ const Audios = () => {
 
     const deletarCurso = async () => {
         try {
-            await axios.delete(`${API_BASE_URL}/delete-curso/${cursoParaExcluir}`);
+            await axios.delete(`${API_BASE_URL}/cursos/${cursoParaExcluir}`);
             toast.success("Curso excluído com sucesso");
             setShowDeleteModal(false);
             setSelectedCursoId(null);
@@ -58,7 +58,7 @@ const Audios = () => {
 
                 const cursosComAudio = await Promise.all(
                     todosCursos.map(async (curso) => {
-                        const response = await fetch(`${API_BASE_URL}/audios-curso/${curso.cp_curso_id}`);
+                        const response = await fetch(`${API_BASE_URL}/cursos/audios/${curso.cp_curso_id}`);
                         const audios = await response.json();
                         return audios.length > 0 ? curso : null;
                     })
@@ -75,7 +75,7 @@ const Audios = () => {
         }
 
         try {
-            const responseTurmas = await fetch(`${API_BASE_URL}/cp_turmas/professor/${professorId}`);
+            const responseTurmas = await fetch(`${API_BASE_URL}/turmas/professor/${professorId}`);
             const turmas = await responseTurmas.json();
             const cursoIds = turmas.map(turma => turma.cp_tr_curso_id);
 
@@ -89,7 +89,7 @@ const Audios = () => {
 
                 const cursosComAudio = await Promise.all(
                     cursos.map(async (curso) => {
-                        const response = await fetch(`${API_BASE_URL}/audios-curso/${curso.cp_curso_id}`);
+                        const response = await fetch(`${API_BASE_URL}/cursos/audios/${curso.cp_curso_id}`);
                         const audios = await response.json();
                         return audios.length > 0 ? curso : null;
                     })
@@ -114,7 +114,7 @@ const Audios = () => {
         setLoading(true);
         setPaginaAtual(1); // Sempre volta para a primeira página ao trocar de curso
         try {
-            const response = await fetch(`${API_BASE_URL}/audios-curso/${cursoId}`);
+            const response = await fetch(`${API_BASE_URL}/cursos/audios/${cursoId}`);
             const data = await response.json();
             data.sort((a, b) => a.cp_nome_audio.localeCompare(b.cp_nome_audio, undefined, { numeric: true, sensitivity: 'base' }));
             setAudios(data);
@@ -414,7 +414,7 @@ const Audios = () => {
                                                                 className="w-100 audio-player"
                                                             >
                                                                 <source
-                                                                    src={`${API_BASE_URL}/audio/${audio.cp_nome_audio}`}
+                                                                    src={`${API_BASE_URL}/cursos/audio/${audio.cp_nome_audio}`}
                                                                     type="audio/mpeg"
                                                                 />
                                                                 Seu navegador não suporta o elemento <code>audio</code>.

@@ -63,7 +63,7 @@ const CadastroTurmaModal = ({ turmaID }) => {
 
   const fetchAlunosPorEscola = async (escolaId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/escola/alunos/${escolaId}`);
+      const response = await axios.get(`${API_BASE_URL}/turmas/escola/alunos/${escolaId}`);
       setAlunosPorEscola(response.data);
       setAlunosFiltrados(response.data);
     } catch (error) {
@@ -82,7 +82,7 @@ const CadastroTurmaModal = ({ turmaID }) => {
             });
 
             // ✅ Busca os alunos apenas uma vez
-            const res = await axios.get(`${API_BASE_URL}/escola/alunos/${response.data.cp_tr_id_escola}`);
+            const res = await axios.get(`${API_BASE_URL}/turmas/escola/alunos/${response.data.cp_tr_id_escola}`);
 
             if (res.data.length > 0) {
               const todosAlunos = res.data;
@@ -117,7 +117,7 @@ const CadastroTurmaModal = ({ turmaID }) => {
 
   const fetchProfessores = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/users-professores`);
+      const response = await axios.get(`${API_BASE_URL}/usuarios/professores`);
       setProfessores(response.data);
     } catch (error) {
       console.error("Erro ao buscar os professores:", error);
@@ -182,6 +182,10 @@ const CadastroTurmaModal = ({ turmaID }) => {
     e.preventDefault();
 
     try {
+      if (!turmaID && (!Array.isArray(turmaData.cp_tr_alunos) || turmaData.cp_tr_alunos.length === 0)) {
+        toast.error("Selecione ao menos um aluno antes de salvar");
+        return;
+      }
       const dataToSend = {
         cp_tr_nome: turmaData.cp_tr_nome,
         cp_tr_data: turmaData.cp_tr_data,
@@ -195,11 +199,11 @@ const CadastroTurmaModal = ({ turmaID }) => {
 
       if (turmaID) {
         // Atualizar turma existente
-        response = await axios.put(`${API_BASE_URL}/update-turma/${turmaID}`, dataToSend);
+        response = await axios.put(`${API_BASE_URL}/turmas/${turmaID}`, dataToSend);
         toast.success("Turma atualizada com sucesso!");
       } else {
         // Criar nova turma
-        response = await axios.post(`${API_BASE_URL}/register-turma`, dataToSend);
+        response = await axios.post(`${API_BASE_URL}/turmas`, dataToSend);
         toast.success("Turma cadastrada com sucesso!");
         // Limpar campos após cadastrar
         setTurmaData({

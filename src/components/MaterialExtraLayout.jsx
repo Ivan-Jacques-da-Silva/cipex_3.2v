@@ -132,7 +132,7 @@ function MaterialExtra() {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`${API_BASE_URL}/material-extra/${id}`);
+      await axios.delete(`${API_BASE_URL}/materiais/${id}`);
       toast.success("Material excluído com sucesso!");
       fetchMaterials();
     } catch (error) {
@@ -146,7 +146,7 @@ function MaterialExtra() {
       const tipoUsuario = localStorage.getItem("userType");
       const professorId = localStorage.getItem("userId");
 
-      const res = await axios.get(`${API_BASE_URL}/material-extra`);
+      const res = await axios.get(`${API_BASE_URL}/materiais`);
       const todosMateriais = res.data;
 
       // Admin vê tudo
@@ -270,7 +270,7 @@ function MaterialExtra() {
       if (editingMaterialId) {
         // Atualizar material existente
         await axios.put(
-          `${API_BASE_URL}/material-extra/${editingMaterialId}`,
+          `${API_BASE_URL}/materiais/${editingMaterialId}`,
           formData,
           {
             headers: { "Content-Type": "multipart/form-data" },
@@ -279,7 +279,7 @@ function MaterialExtra() {
         toast.success("Material atualizado com sucesso!");
       } else {
         // Criar novo material
-        await axios.post(`${API_BASE_URL}/material-extra`, formData, {
+        await axios.post(`${API_BASE_URL}/materiais`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Material cadastrado com sucesso!");

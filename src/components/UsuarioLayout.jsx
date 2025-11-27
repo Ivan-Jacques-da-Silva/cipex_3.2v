@@ -21,9 +21,19 @@ const Usuarios = () => {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/users`);
+            const token =
+                localStorage.getItem('authToken') ||
+                localStorage.getItem('token') ||
+                localStorage.getItem('userId') ||
+                'cipex';
+
+            const response = await fetch(`${API_BASE_URL}/usuarios`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
             const data = await response.json();
-            setUsers(data);
+            setUsers(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Erro ao buscar usuários:", error);
         } finally {
@@ -33,8 +43,17 @@ const Usuarios = () => {
 
     const handleDelete = async (userId) => {
         try {
-            await fetch(`${API_BASE_URL}/delete-user/${userId}`, {
+            const token =
+                localStorage.getItem('authToken') ||
+                localStorage.getItem('token') ||
+                localStorage.getItem('userId') ||
+                'cipex';
+
+            await fetch(`${API_BASE_URL}/usuarios/delete-user/${userId}`, {
                 method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             fetchUsers();
         } catch (error) {

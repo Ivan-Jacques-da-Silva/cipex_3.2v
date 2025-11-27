@@ -22,6 +22,7 @@ const CadastroEscolaModal = ({ escolaId }) => {
     const [escolaData, setEscolaData] = useState({
         cp_ec_nome: '',
         cp_ec_responsavel: '',
+        cp_ec_responsavel_id: null,
         cp_ec_endereco_rua: '',
         cp_ec_endereco_numero: '',
         cp_ec_endereco_cidade: '',
@@ -55,9 +56,22 @@ const CadastroEscolaModal = ({ escolaId }) => {
         fetchResponsaveis();
     }, []);
 
+    // Se vier só o nome do responsável (legado), tentar mapear para ID
+    useEffect(() => {
+        if (!escolaData.cp_ec_responsavel_id && escolaData.cp_ec_responsavel && usuariosResponsaveis.length > 0) {
+            const match = usuariosResponsaveis.find(u => u.cp_nome === escolaData.cp_ec_responsavel);
+            if (match) {
+                setEscolaData(prev => ({
+                    ...prev,
+                    cp_ec_responsavel_id: match.cp_id
+                }));
+            }
+        }
+    }, [escolaData.cp_ec_responsavel, escolaData.cp_ec_responsavel_id, usuariosResponsaveis]);
+
     const fetchResponsaveis = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/users-escolas?cp_tipo_user=2`);
+            const response = await axios.get(`${API_BASE_URL}/usuarios/escolas?cp_tipo_user=2`);
             if (response.data && response.data.length > 0) {
                 setUsuariosResponsaveis(response.data);
             }
@@ -72,6 +86,17 @@ const CadastroEscolaModal = ({ escolaId }) => {
         setEscolaData(prevEscolaData => ({
             ...prevEscolaData,
             [name]: value
+        }));
+    };
+
+    const handleResponsavelChange = (e) => {
+        const value = e.target.value;
+        const id = value ? parseInt(value, 10) : null;
+        const usuario = usuariosResponsaveis.find(u => u.cp_id === id);
+        setEscolaData(prev => ({
+            ...prev,
+            cp_ec_responsavel_id: id,
+            cp_ec_responsavel: usuario ? usuario.cp_nome : ''
         }));
     };
 
@@ -93,15 +118,16 @@ const CadastroEscolaModal = ({ escolaId }) => {
                 ? new Date(escolaData.cp_ec_data_cadastro).toISOString().slice(0, 10)
                 : new Date().toISOString().slice(0, 10),
             cp_ec_excluido: 0,
+            cp_ec_responsavel_id: escolaData.cp_ec_responsavel_id ? Number(escolaData.cp_ec_responsavel_id) : null,
         };
 
         try {
             const modoEdicao = Boolean(escolaId);
             const resposta = modoEdicao
-                ? await axios.put(`${API_BASE_URL}/edit-escola/${escolaId}`, escolaFormatada, {
+                ? await axios.put(`${API_BASE_URL}/escolas/${escolaId}`, escolaFormatada, {
                     headers: { "Content-Type": "application/json" },
                 })
-                : await axios.post(`${API_BASE_URL}/register-escola`, escolaFormatada);
+                : await axios.post(`${API_BASE_URL}/escolas`, escolaFormatada);
 
             if (resposta.status === 200) {
                 toast.success(modoEdicao ? "Escola atualizada com sucesso!" : "Escola cadastrada com sucesso!");
@@ -113,6 +139,7 @@ const CadastroEscolaModal = ({ escolaId }) => {
                 setEscolaData({
                     cp_ec_nome: "",
                     cp_ec_responsavel: "",
+                    cp_ec_responsavel_id: null,
                     cp_ec_endereco_rua: "",
                     cp_ec_endereco_numero: "",
                     cp_ec_endereco_cidade: "",
@@ -172,18 +199,18 @@ const CadastroEscolaModal = ({ escolaId }) => {
                                         />
                                     </Col>
                                     <Col md={12}>
-                                        <label htmlFor="cp_ec_responsavel">Responsável<span className="required">*</span>:</label>
+                                        <label htmlFor="cp_ec_responsavel_id">Responsável<span className="required">*</span>:</label>
                                         <select
-                                            id="cp_ec_responsavel"
-                                            name="cp_ec_responsavel"
-                                            value={escolaData.cp_ec_responsavel}
-                                            onChange={handleChange}
+                                            id="cp_ec_responsavel_id"
+                                            name="cp_ec_responsavel_id"
+                                            value={escolaData.cp_ec_responsavel_id ?? ''}
+                                            onChange={handleResponsavelChange}
                                             className="form-control"
                                             required
                                         >
                                             <option value="">Selecione o responsável</option>
                                             {usuariosResponsaveis.map((usuario) => (
-                                                <option key={usuario.id || usuario.cp_nome} value={usuario.cp_nome}>
+                                                <option key={usuario.cp_id} value={usuario.cp_id}>
                                                     {usuario.cp_nome}
                                                 </option>
                                             ))}

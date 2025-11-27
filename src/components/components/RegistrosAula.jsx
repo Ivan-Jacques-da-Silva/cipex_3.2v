@@ -60,7 +60,7 @@ const RegistrosAula = ({ turmaId, onAtualizar, atualizarResumos }) => {
     const fetchResumos = async () => {
         try {
             console.log("Etapa 5: fetchResumos chamado no RegistrosAula.");
-            const response = await axios.get(`${API_BASE_URL}/resumos/${turmaId}`);
+            const response = await axios.get(`${API_BASE_URL}/notas/resumos/${turmaId}`);
             console.log("Dados retornados do fetchResumos:", response.data); // Adicione isso
             const resumos = response.data;
 
@@ -120,7 +120,7 @@ const RegistrosAula = ({ turmaId, onAtualizar, atualizarResumos }) => {
             }
 
             const response = await axios.put(
-                `${API_BASE_URL}/resumos/${resumoAtual.cp_res_id}`,
+                `${API_BASE_URL}/notas/resumos/${resumoAtual.cp_res_id}`,
                 formDataToSend,
                 {
                     headers: { "Content-Type": "multipart/form-data" },
@@ -162,7 +162,7 @@ const RegistrosAula = ({ turmaId, onAtualizar, atualizarResumos }) => {
     const handleExcluirResumo = async () => {
         if (!resumoParaExcluir) return;
         try {
-            await axios.delete(`${API_BASE_URL}/resumos/${resumoParaExcluir.cp_res_id}`);
+            await axios.delete(`${API_BASE_URL}/notas/resumos/${resumoParaExcluir.cp_res_id}`);
             toast.success("Resumo excluído com sucesso.");
             fetchResumos();
         } catch (error) {

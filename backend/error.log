@@ -1,0 +1,35 @@
+2025-11-12T00:21:59.322Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-12T00:53:18.020Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-12T00:53:18.023Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-12T00:56:41.976Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-12T00:56:41.978Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-12T03:59:28.884Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-12T03:59:28.887Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21

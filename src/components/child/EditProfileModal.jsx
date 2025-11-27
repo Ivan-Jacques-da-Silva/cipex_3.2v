@@ -66,7 +66,8 @@ const EditProfileModal = ({ show, onHide, userInfo, onUserUpdate }) => {
                 delete updateData.cp_password; // Remove senha se estiver vazia
             }
 
-            const response = await fetch(`${API_BASE_URL}/update-profile/${userId}`, {
+            console.log('[EditProfileModal] Enviando atualização de dados do perfil', updateData);
+            const response = await fetch(`${API_BASE_URL}/usuarios/update-profile/${userId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -77,6 +78,7 @@ const EditProfileModal = ({ show, onHide, userInfo, onUserUpdate }) => {
             if (!response.ok) {
                 throw new Error('Erro ao atualizar dados do perfil');
             }
+            console.log('[EditProfileModal] Atualização de dados OK');
 
             // Se há arquivo selecionado, faz upload da foto
             if (selectedFile) {
@@ -84,7 +86,12 @@ const EditProfileModal = ({ show, onHide, userInfo, onUserUpdate }) => {
                 formDataPhoto.append('cp_foto_perfil', selectedFile);
                 formDataPhoto.append('userId', userId);
 
-                const photoResponse = await fetch(`${API_BASE_URL}/uploadProfilePhoto`, {
+                console.log('[EditProfileModal] Enviando upload de foto', {
+                    url: `${API_BASE_URL}/usuarios/uploadProfilePhoto`,
+                    fileName: selectedFile?.name,
+                    userId
+                });
+                const photoResponse = await fetch(`${API_BASE_URL}/usuarios/uploadProfilePhoto`, {
                     method: 'POST',
                     body: formDataPhoto
                 });
@@ -94,20 +101,31 @@ const EditProfileModal = ({ show, onHide, userInfo, onUserUpdate }) => {
                 }
 
                 const photoResult = await photoResponse.json();
+                console.log('[EditProfileModal] Upload de foto OK', photoResult);
 
                 // Atualiza o localStorage com a nova foto
                 localStorage.setItem('userProfilePhoto', photoResult.filePath);
+
+                // Atualiza preview e estado com o caminho correto retornado pelo backend
+                setPreviewUrl(`${API_BASE_URL}${photoResult.filePath}`);
+
+                if (onUserUpdate) {
+                    onUserUpdate({
+                        ...userInfo,
+                        ...formData,
+                        cp_foto_perfil: photoResult.filePath
+                    });
+                }
             }
 
             // Atualiza o localStorage com os novos dados
             localStorage.setItem('userName', formData.cp_nome);
 
             // Chama a função de callback para atualizar o estado pai
-            if (onUserUpdate) {
+            if (!selectedFile && onUserUpdate) {
                 onUserUpdate({
                     ...userInfo,
-                    ...formData,
-                    cp_foto_perfil: selectedFile ? `/FotoPerfil/${selectedFile.name}` : userInfo.cp_foto_perfil
+                    ...formData
                 });
             }
 

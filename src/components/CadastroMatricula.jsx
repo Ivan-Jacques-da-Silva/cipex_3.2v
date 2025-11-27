@@ -173,8 +173,8 @@ const CadastroMatricula = ({
     useEffect(() => {
         if (!matriculaId) {
             axios
-                .get(`${API_BASE_URL}/buscarusermatricula`)
-                .then((response) => {
+                .get(`${API_BASE_URL}/usuarios/matricula`)
+        .then((response) => {
                     const schoolId = localStorage.getItem("schoolId");
 
                     const usuariosFiltrados = response.data.filter(usuario =>
@@ -308,7 +308,7 @@ const CadastroMatricula = ({
                     valorMensalidade: matriculaData.valorMensalidade,
                 };
 
-                const response = await axios.put(`${API_BASE_URL}/editar-matricula/${matriculaId}`, editObj);
+                const response = await axios.put(`${API_BASE_URL}/matriculas/${matriculaId}`, editObj);
                 if (response.data?.msg === "Matrícula e parcelas atualizadas com sucesso") {
                     toast.success("Matrícula editada com sucesso");
                 } else {
@@ -320,7 +320,7 @@ const CadastroMatricula = ({
                     primeiraDataPagamento: formatarData(matriculaData.primeiraDataPagamento),
                 };
 
-                const response = await axios.post(`${API_BASE_URL}/cadastrar-matricula`, createObj);
+                const response = await axios.post(`${API_BASE_URL}/matriculas`, createObj);
                 if (response.data?.msg === "Matrícula cadastrada com sucesso") {
                     toast.success("Matrícula cadastrada com sucesso");
                     limparCampos();
@@ -341,7 +341,7 @@ const CadastroMatricula = ({
         const selectedUserId = e.target.value;
 
         if (selectedUserId) {
-            axios.get(`${API_BASE_URL}/buscarusermatricula/${selectedUserId}`)
+            axios.get(`${API_BASE_URL}/usuarios/matricula/${selectedUserId}`)
                 .then(response => {
                     if (response.data) {
                         const usuario = response.data;

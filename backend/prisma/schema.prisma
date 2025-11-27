@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,269 +8,201 @@ datasource db {
 }
 
 model cp_usuarios {
-  cp_id                  Int       @id @default(autoincrement())
-  cp_nome                String    @db.VarChar(80)
-  cp_email               String    @db.VarChar(45)
-  cp_login               String    @db.VarChar(45)
-  cp_password            String    @db.VarChar(200)
-  cp_tipo_user           Int
-  cp_rg                  String?   @db.VarChar(20)
-  cp_cpf                 String    @db.VarChar(14)
-  cp_datanascimento      DateTime  @db.Date
-  cp_estadocivil         String?   @db.VarChar(45)
-  cp_cnpj                String?
-  cp_ie                  String?
-  cp_whatsapp            String?   @db.VarChar(14)
-  cp_telefone            String?   @db.VarChar(14)
-  cp_empresaatuacao      String?   @db.VarChar(45)
-  cp_profissao           String?   @db.VarChar(45)
-  cp_end_cidade_estado   String?   @db.VarChar(45)
-  cp_end_rua             String?   @db.VarChar(45)
-  cp_end_num             Int?
-  cp_end_cep             String?
-  cp_descricao           String?   @db.Text
-  cp_foto_perfil         String?   @db.VarChar(255)
-  cp_escola_id           Int?
-  cp_turma_id            Int?
-  cp_excluido            Int       @default(0)
-
-  // Relações
-  escola                 cp_escolas?     @relation(fields: [cp_escola_id], references: [cp_ec_id])
-  turma                  cp_turmas?      @relation("AlunoTurma", fields: [cp_turma_id], references: [cp_tr_id])
-  turmas_professor       cp_turmas[]     @relation("ProfessorTurma")
-  chamadas               cp_chamadas[]
-  tr_alunos              cp_tr_aluno[]
-  vizu_audios            cp_vizu_aud_usuarios[]
-  notas                  cp_notas[]
+  cp_id                Int                    @id
+  cp_nome              String?                @db.VarChar(80)
+  cp_email             String?                @db.VarChar(45)
+  cp_login             String?                @db.VarChar(45)
+  cp_password          String?                @db.VarChar(200)
+  cp_tipo_user         Int?
+  cp_rg                String?                @db.VarChar(20)
+  cp_cpf               String?                @db.VarChar(14)
+  cp_datanascimento    String?                @db.VarChar(20)  // Alterado para String para aceitar qualquer formato
+  cp_estadocivil       String?                @db.VarChar(45)
+  cp_cnpj              String?                @db.VarChar(20)  // Alterado para String
+  cp_ie                String?                @db.VarChar(20)  // Alterado para String
+  cp_whatsapp          String?                @db.VarChar(14)
+  cp_telefone          String?                @db.VarChar(14)
+  cp_empresaatuacao    String?                @db.VarChar(45)
+  cp_profissao         String?                @db.VarChar(45)
+  cp_end_cidade_estado String?                @db.VarChar(45)
+  cp_end_rua           String?                @db.VarChar(45)
+  cp_end_num           String?                @db.VarChar(20)  // Alterado para String
+  cp_end_cep           String?                @db.VarChar(20)  // Alterado para String
+  cp_descricao         String?                @db.VarChar(50)
+  cp_foto_perfil       String?                @db.VarChar(255)
+  cp_escola_id         Int?
+  cp_turma_id          Int?
+  cp_excluido          Int?                   @default(0)      // Alterado para Int para aceitar 0/1
+  cp_chamadas          cp_chamadas[]
+  cp_tr_aluno          cp_tr_aluno[]
+  cp_turmas            cp_turmas[]
+  cp_vizu_aud_usuarios cp_vizu_aud_usuarios[]
 
   @@map("cp_usuarios")
 }
 
 model cp_escolas {
-  cp_ec_id               Int       @id @default(autoincrement())
-  cp_ec_nome             String?   @db.VarChar(100)
-  cp_ec_data_cadastro    DateTime? @db.Date
-  cp_ec_responsavel      String?   @db.VarChar(50)
-  cp_ec_endereco_rua     String?   @db.VarChar(100)
-  cp_ec_endereco_numero  String?   @db.VarChar(20)
-  cp_ec_endereco_cidade  String?   @db.VarChar(50)
-  cp_ec_endereco_bairro  String?   @db.VarChar(50)
-  cp_ec_endereco_estado  String?   @db.VarChar(50)
-  cp_ec_excluido         Boolean   @default(false)
-  cp_ec_descricao        String?   @db.VarChar(255)
+  cp_ec_id              Int           @id
+  cp_ec_nome            String?       @db.VarChar(100)
+  cp_ec_data_cadastro   String?       @db.VarChar(20)  // Alterado para String
+  cp_ec_responsavel     String?       @db.VarChar(50)
+  cp_ec_responsavel_id  Int?
+  cp_ec_endereco_rua    String?       @db.VarChar(100)
+  cp_ec_endereco_numero String?       @db.VarChar(20)
+  cp_ec_endereco_cep    String?       @db.VarChar(20)  // Alterado para String
+  cp_ec_cidade          String?       @db.VarChar(50)
+  cp_ec_estado          String?       @db.VarChar(2)
+  cp_ec_telefone        String?       @db.VarChar(14)
+  cp_ec_email           String?       @db.VarChar(50)
+  cp_ec_excluido        Int?          @default(0)      // Alterado para Int
+  cp_tr_aluno           cp_tr_aluno[]
+  cp_turmas             cp_turmas[]
 
-  // Relações
-  usuarios               cp_usuarios[]
-  turmas                 cp_turmas[]
-  tr_alunos              cp_tr_aluno[]
-  matriculas             cp_matriculas[]
+  // Relação opcional com usuário responsável (por ID)
+  cp_usuarios           cp_usuarios?  @relation(fields: [cp_ec_responsavel_id], references: [cp_id])
 
   @@map("cp_escolas")
 }
 
-model cp_turmas {
-  cp_tr_id               Int       @id @default(autoincrement())
-  cp_tr_nome             String    @db.VarChar(100)
-  cp_tr_data             DateTime  @db.Date
-  cp_tr_id_professor     Int
-  cp_tr_id_escola        Int
-  cp_tr_curso_id         Int?
-
-  // Relações
-  professor              cp_usuarios    @relation("ProfessorTurma", fields: [cp_tr_id_professor], references: [cp_id])
-  escola                 cp_escolas     @relation(fields: [cp_tr_id_escola], references: [cp_ec_id])
-  curso                  cp_curso?      @relation(fields: [cp_tr_curso_id], references: [cp_curso_id])
-  alunos                 cp_usuarios[]  @relation("AlunoTurma")
-  chamadas               cp_chamadas[]
-  tr_alunos              cp_tr_aluno[]
-  resumos                cp_resumos[]
-  notas                  cp_notas[]
-
-  @@map("cp_turmas")
-}
-
 model cp_curso {
-  cp_curso_id            Int       @id @default(autoincrement())
-  cp_nome_curso          String    @db.VarChar(100)
-  cp_youtube_link_curso  String?   @db.VarChar(255)
-  cp_pdf1_curso          String?   @db.VarChar(255)
-  cp_pdf2_curso          String?   @db.VarChar(255)
-  cp_pdf3_curso          String?   @db.VarChar(255)
-
-  // Relações
-  turmas                 cp_turmas[]
-  audios                 cp_audio[]
+  cp_curso_id           Int        @id
+  cp_nome_curso         String?    @db.VarChar(100)
+  cp_youtube_link_curso String?    @db.VarChar(255)
+  cp_pdf1_curso         String?    @db.VarChar(255)
+  cp_pdf2_curso         String?    @db.VarChar(255)
+  cp_pdf3_curso         String?    @db.VarChar(255)
+  cp_pdf4_curso         String?    @db.VarChar(255)
+  cp_pdf5_curso         String?    @db.VarChar(255)
+  cp_excluido           Int?       @default(0)         // Alterado para Int
+  cp_audio              cp_audio[]
 
   @@map("cp_curso")
 }
 
 model cp_audio {
-  cp_audio_id            Int       @id @default(autoincrement())
-  cp_curso_id            Int?
-  cp_nome_audio          String    @db.VarChar(100)
-  cp_arquivo_audio       String    @db.VarChar(255)
-
-  // Relações
-  curso                  cp_curso?   @relation(fields: [cp_curso_id], references: [cp_curso_id])
-  vizu_usuarios          cp_vizu_aud_usuarios[]
+  cp_audio_id      Int                    @id
+  cp_curso_id      Int?
+  cp_nome_audio    String?                @db.VarChar(100)
+  cp_arquivo_audio String?                @db.VarChar(255)
+  cp_curso         cp_curso?              @relation(fields: [cp_curso_id], references: [cp_curso_id])
+  cp_vizu_aud_usuarios cp_vizu_aud_usuarios[]
 
   @@map("cp_audio")
 }
 
-model cp_matriculas {
-  cp_mt_id               Int       @id @default(autoincrement())
-  cp_mt_curso            String?   @db.VarChar(255)
-  cp_mt_escola           Int?
-  cp_mt_usuario          Int?
-  cp_mt_nome_usuario     String?   @db.VarChar(255)
-  cp_mt_cadastro_usuario String?   @db.VarChar(255)
-  cp_mt_valor_curso      Decimal?  @db.Decimal(10,2)
-  cp_mt_quantas_parcelas Int?
-  cp_mt_parcelas_pagas   Int?
-  cp_mt_primeira_parcela DateTime? @db.Date
-  cp_status_matricula    String?   @db.VarChar(50)
-  cp_mt_nivel            String?   @db.VarChar(50)
-  cp_mt_horario_inicio   String?   @db.VarChar(10)
-  cp_mt_horario_fim      String?   @db.VarChar(10)
-  cp_mt_escolaridade     String?   @db.VarChar(100)
-  cp_mt_local_nascimento String?   @db.VarChar(100)
-  cp_mt_rede_social      String?   @db.VarChar(100)
-  cp_mt_nome_pai         String?   @db.VarChar(100)
-  cp_mt_contato_pai      String?   @db.VarChar(20)
-  cp_mt_nome_mae         String?   @db.VarChar(100)
-  cp_mt_contato_mae      String?   @db.VarChar(20)
-  cp_mt_excluido         Int       @default(0)
-  cp_mt_tipo_pagamento   String?   @db.VarChar(20)
-  cp_mt_dias_semana      String?   @db.VarChar(100)
-  cp_mt_valor_mensalidade Decimal? @db.Decimal(10,2)
+model cp_turmas {
+  cp_turma_id       Int           @id
+  cp_turma_nome     String?       @db.VarChar(100)
+  cp_turma_ano      String?       @db.VarChar(4)   // Alterado para String
+  cp_turma_semestre String?       @db.VarChar(1)   // Alterado para String
+  cp_escola_id      Int?
+  cp_usuario_id     Int?
+  cp_excluido       Int?          @default(0)      // Alterado para Int
+  cp_chamadas       cp_chamadas[]
+  cp_resumos        cp_resumos[]
+  cp_tr_aluno       cp_tr_aluno[]
+  cp_escolas        cp_escolas?   @relation(fields: [cp_escola_id], references: [cp_ec_id])
+  cp_usuarios       cp_usuarios?  @relation(fields: [cp_usuario_id], references: [cp_id])
 
-  // Relações
-  escola                 cp_escolas? @relation(fields: [cp_mt_escola], references: [cp_ec_id])
-  parcelas               cp_matriculaParcelas[]
+  @@map("cp_turmas")
+}
+
+model cp_matriculas {
+  cp_mat_id               Int                   @id
+  cp_usuario_id           Int?
+  cp_mat_data_matricula   String?               @db.VarChar(20)  // Alterado para String
+  cp_mat_valor_total      String?               @db.VarChar(20)  // Alterado para String
+  cp_mat_desconto         String?               @db.VarChar(20)  // Alterado para String
+  cp_mat_valor_final      String?               @db.VarChar(20)  // Alterado para String
+  cp_mat_forma_pagamento  String?               @db.VarChar(50)
+  cp_mat_num_parcelas     String?               @db.VarChar(10)  // Alterado para String
+  cp_mat_observacoes      String?               @db.Text
+  cp_excluido             Int?                  @default(0)      // Alterado para Int
+  cp_matriculaParcelas    cp_matriculaParcelas[]
 
   @@map("cp_matriculas")
 }
 
-model cp_matriculaParcelas {
-  cp_mtPar_id            Int       @id @default(autoincrement())
-  cp_mt_id               Int
-  cp_mtPar_dataParcela   DateTime? @db.Date
-  cp_mtPar_status        String?   @db.VarChar(50)
-  cp_mtPar_valorParcela  Decimal?  @db.Decimal(10,2)
-
-  // Relações
-  matricula              cp_matriculas @relation(fields: [cp_mt_id], references: [cp_mt_id])
-
-  @@map("cp_matriculaParcelas")
-}
-
-model cp_chamadas {
-  cp_ch_id               Int       @id @default(autoincrement())
-  cp_ch_turma_id         Int
-  cp_ch_aluno_id         Int
-  cp_ch_data             DateTime  @db.Date
-  cp_ch_presente         Boolean   @default(false)
-  cp_ch_observacao       String?   @db.Text
-
-  // Relações
-  turma                  cp_turmas   @relation(fields: [cp_ch_turma_id], references: [cp_tr_id])
-  aluno                  cp_usuarios @relation(fields: [cp_ch_aluno_id], references: [cp_id])
-
-  @@map("cp_chamadas")
-}
-
-model cp_mat_extra {
-  cp_mat_extra_id                Int       @id @default(autoincrement())
-  cp_mat_extra_thumbnail         String?   @db.VarChar(255)
-  cp_mat_extra_title             String?   @db.VarChar(200)
-  cp_mat_extra_description       String?   @db.Text
-  cp_mat_extra_date              DateTime? @db.Date
-  cp_mat_extra_youtube_url       String?   @db.VarChar(255)
-  cp_mat_extra_pdf1              String?   @db.VarChar(255)
-  cp_mat_extra_pdf2              String?   @db.VarChar(255)
-  cp_mat_extra_pdf3              String?   @db.VarChar(255)
-  cp_mat_extra_categories        String?   @db.VarChar(255)
-  cp_mat_extra_permitirDownload  Boolean   @default(false)
-  cp_mat_extra_codigos           String?   @db.VarChar(255)
-
-  @@map("cp_mat_extra")
-}
-
-model cp_mat_materiais {
-  cp_mm_id               Int       @id @default(autoincrement())
-  cp_mm_nome             String?   @db.VarChar(100)
-  cp_mm_arquivo          String?   @db.VarChar(255)
-  cp_mm_tipo             String?   @db.VarChar(50)
-
-  @@map("cp_mat_materiais")
-}
-
 model cp_resumos {
-  cp_rs_id               Int       @id @default(autoincrement())
-  cp_res_turma_id        Int?
-  cp_res_data            DateTime? @db.Date
-  cp_res_hora            String?   @db.VarChar(10)
-  cp_res_resumo          String?   @db.Text
-  cp_res_arquivo         String?   @db.VarChar(255)
-  cp_res_aula            String?   @db.VarChar(100)
-  cp_res_link            String?   @db.VarChar(255)
-  cp_res_link_youtube    String?   @db.VarChar(255)
-
-  // Relações
-  turma                  cp_turmas? @relation(fields: [cp_res_turma_id], references: [cp_tr_id])
+  cp_resumo_id       Int         @id
+  cp_turma_id        Int?
+  cp_resumo_titulo   String?     @db.VarChar(100)
+  cp_resumo_conteudo String?     @db.Text
+  cp_resumo_data     String?     @db.VarChar(20)  // Alterado para String
+  cp_excluido        Int?        @default(0)      // Alterado para Int
+  cp_turmas          cp_turmas?  @relation(fields: [cp_turma_id], references: [cp_turma_id])
 
   @@map("cp_resumos")
 }
 
-model cp_tr_aluno {
-  cp_tra_id              Int       @id @default(autoincrement())
-  cp_tr_id_escola        Int
-  cp_tr_id_turma         Int
-  cp_tr_id_usuario       Int
+model cp_chamadas {
+  cp_chamada_id   Int         @id
+  cp_turma_id     Int?
+  cp_usuario_id   Int?
+  cp_data_chamada String?     @db.VarChar(20)  // Alterado para String
+  cp_presente     Int?        @default(0)      // Alterado para Int
+  cp_excluido     Int?        @default(0)      // Alterado para Int
+  cp_turmas       cp_turmas?  @relation(fields: [cp_turma_id], references: [cp_turma_id])
+  cp_usuarios     cp_usuarios? @relation(fields: [cp_usuario_id], references: [cp_id])
 
-  // Relações
-  escola                 cp_escolas  @relation(fields: [cp_tr_id_escola], references: [cp_ec_id])
-  turma                  cp_turmas   @relation(fields: [cp_tr_id_turma], references: [cp_tr_id])
-  usuario                cp_usuarios @relation(fields: [cp_tr_id_usuario], references: [cp_id])
+  @@map("cp_chamadas")
+}
+
+model cp_tr_aluno {
+  cp_tr_id      Int          @id
+  cp_usuario_id Int?
+  cp_escola_id  Int?
+  cp_turma_id   Int?
+  cp_excluido   Int?         @default(0)  // Alterado para Int
+  cp_escolas    cp_escolas?  @relation(fields: [cp_escola_id], references: [cp_ec_id])
+  cp_turmas     cp_turmas?   @relation(fields: [cp_turma_id], references: [cp_turma_id])
+  cp_usuarios   cp_usuarios? @relation(fields: [cp_usuario_id], references: [cp_id])
 
   @@map("cp_tr_aluno")
 }
 
 model cp_vizu_aud_usuarios {
-  cp_vau_id              Int       @id @default(autoincrement())
-  cp_id_usuario          Int
-  cp_id_audio            Int
-  cp_vau_data_vizualizacao DateTime @default(now())
-
-  // Relações
-  usuario                cp_usuarios @relation(fields: [cp_id_usuario], references: [cp_id])
-  audio                  cp_audio    @relation(fields: [cp_id_audio], references: [cp_audio_id])
+  cp_vizu_id    Int         @id
+  cp_usuario_id Int?
+  cp_audio_id   Int?
+  cp_data_vizu  String?     @db.VarChar(20)  // Alterado para String
+  cp_excluido   Int?        @default(0)      // Alterado para Int
+  cp_audio      cp_audio?   @relation(fields: [cp_audio_id], references: [cp_audio_id])
+  cp_usuarios   cp_usuarios? @relation(fields: [cp_usuario_id], references: [cp_id])
 
   @@map("cp_vizu_aud_usuarios")
 }
 
-model cp_notas {
-  cp_nota_id             Int       @id @default(autoincrement())
-  cp_nota_turma_id       Int
-  cp_nota_aluno_id       Int
-  cp_nota_data           DateTime  @db.Date
-  cp_nota_workbook       Decimal   @db.Decimal(4,2)
-  cp_nota_prova          Decimal   @db.Decimal(4,2)
-  cp_nota_media          Decimal   @db.Decimal(4,2)
+model cp_matriculaParcelas {
+  cp_parcela_id          Int            @id
+  cp_mat_id              Int?
+  cp_parcela_numero      String?        @db.VarChar(10)  // Alterado para String
+  cp_parcela_valor       String?        @db.VarChar(20)  // Alterado para String
+  cp_parcela_vencimento  String?        @db.VarChar(20)  // Alterado para String
+  cp_parcela_paga        Int?           @default(0)      // Alterado para Int
+  cp_parcela_data_pagto  String?        @db.VarChar(20)  // Alterado para String
+  cp_excluido            Int?           @default(0)      // Alterado para Int
+  cp_matriculas          cp_matriculas? @relation(fields: [cp_mat_id], references: [cp_mat_id])
 
-  // Relações
-  turma                  cp_turmas   @relation(fields: [cp_nota_turma_id], references: [cp_tr_id])
-  aluno                  cp_usuarios @relation(fields: [cp_nota_aluno_id], references: [cp_id])
-
-  @@map("cp_notas")
+  @@map("cp_matriculaParcelas")
 }
 
-model eventos {
-  id                     Int       @id @default(autoincrement())
-  titulo                 String?   @db.VarChar(100)
-  descricao              String?   @db.Text
-  data_evento            DateTime? @db.Date
-  data_criacao           DateTime? @default(now())
+model cp_mat_extra {
+  cp_mat_extra_id          Int     @id
+  cp_mat_extra_nome        String? @db.VarChar(100)
+  cp_mat_extra_descricao   String? @db.Text
+  cp_mat_extra_arquivo     String? @db.VarChar(255)
+  cp_excluido              Int?    @default(0)  // Alterado para Int
 
-  @@map("eventos")
+  @@map("cp_mat_extra")
+}
+
+model cp_mat_materiais {
+  cp_mat_materiais_id        Int     @id
+  cp_mat_materiais_nome      String? @db.VarChar(100)
+  cp_mat_materiais_descricao String? @db.Text
+  cp_mat_materiais_arquivo   String? @db.VarChar(255)
+  cp_excluido                Int?    @default(0)  // Alterado para Int
+
+  @@map("cp_mat_materiais")
 }

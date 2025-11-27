@@ -1,0 +1,136 @@
+{
+  "cp_chamadas": {
+    "successCount": 4204,
+    "errorCount": 0,
+    "errors": []
+  },
+  "cp_matriculas": {
+    "successCount": 356,
+    "errorCount": 2,
+    "errors": [
+      {
+        "row": {
+          "cp_mat_id": 23,
+          "cp_usuario_id": null,
+          "cp_mat_data_matricula": null,
+          "cp_mat_valor_total": null,
+          "cp_mat_num_parcelas": null,
+          "cp_mat_forma_pagamento": null
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nUnique constraint failed on the fields: (`cp_mat_id`)"
+      },
+      {
+        "row": {
+          "cp_mat_id": 55,
+          "cp_usuario_id": null,
+          "cp_mat_data_matricula": null,
+          "cp_mat_valor_total": null,
+          "cp_mat_num_parcelas": null,
+          "cp_mat_forma_pagamento": null
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nUnique constraint failed on the fields: (`cp_mat_id`)"
+      }
+    ]
+  },
+  "cp_resumos": {
+    "successCount": 156,
+    "errorCount": 0,
+    "errors": []
+  },
+  "cp_vizu_aud_usuarios": {
+    "successCount": 549,
+    "errorCount": 10,
+    "errors": [
+      {
+        "row": {
+          "cp_vizu_id": 10,
+          "cp_usuario_id": 149,
+          "cp_audio_id": 985,
+          "cp_data_vizu": "2024-07-22 16:58:47"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 11,
+          "cp_usuario_id": 149,
+          "cp_audio_id": 983,
+          "cp_data_vizu": "2024-07-22 16:59:18"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 105,
+          "cp_usuario_id": 167,
+          "cp_audio_id": 1506,
+          "cp_data_vizu": "2024-09-11 18:07:45"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 387,
+          "cp_usuario_id": 311,
+          "cp_audio_id": 553,
+          "cp_data_vizu": "2025-02-26 11:25:18"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 686,
+          "cp_usuario_id": 644,
+          "cp_audio_id": 3461,
+          "cp_data_vizu": "2025-05-05 21:19:42"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 687,
+          "cp_usuario_id": 644,
+          "cp_audio_id": 3462,
+          "cp_data_vizu": "2025-05-05 21:20:38"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 688,
+          "cp_usuario_id": 644,
+          "cp_audio_id": 3476,
+          "cp_data_vizu": "2025-05-05 21:21:04"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 689,
+          "cp_usuario_id": 644,
+          "cp_audio_id": 3506,
+          "cp_data_vizu": "2025-05-05 21:21:12"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 690,
+          "cp_usuario_id": 643,
+          "cp_audio_id": 3427,
+          "cp_data_vizu": "2025-05-05 21:22:00"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      },
+      {
+        "row": {
+          "cp_vizu_id": 691,
+          "cp_usuario_id": 643,
+          "cp_audio_id": 3426,
+          "cp_data_vizu": "2025-05-05 21:22:00"
+        },
+        "error": "\nInvalid `prisma[tableName].create()` invocation in\nC:\\Users\\Notebook\\Downloads\\cipex32v\\cipex32v\\backend\\migrator_final.js:182:31\n\n  179 for (const row of data) {\n  180   try {\n  181     const prismaData = mapRowToPrisma(row, tableName);\n→ 182     await prisma[tableName].create(\nForeign key constraint violated on the (not available)"
+      }
+    ]
+  }
+}

@@ -48,7 +48,7 @@ const Usuarios = () => {
 
     const handleDelete = async (matriculaId) => {
         try {
-            await fetch(`${API_BASE_URL}/excluir-matricula/${matriculaId}`, {
+            await fetch(`${API_BASE_URL}/matriculas/${matriculaId}`, {
                 method: "DELETE",
             });
             fetchMatriculas();
