@@ -33,3 +33,53 @@
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
     at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:23:17.243Z - error: não existe a coluna "cp_tr_excluido"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:203:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\turmas\index.js:178:20
+2025-11-27T03:23:36.877Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:23:39.425Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-27T03:23:42.696Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:23:42.698Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-27T03:23:45.744Z - error: sintaxe de entrada é inválida para tipo integer: "NaN"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findUnique (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:81:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\usuarios\index.js:90:18
+2025-11-27T03:23:45.747Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:28:22.623Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:31:18.612Z - error: sintaxe de entrada é inválida para tipo integer: "false"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:140:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\escolas\index.js:21:21
+2025-11-27T03:31:22.378Z - error: não existe a coluna "cp_tr_excluido"
+    at C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.findMany (C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\config\database.js:203:24)
+    at async C:\Users\Notebook\Downloads\cipex32v\cipex32v\backend\routes\turmas\index.js:295:20

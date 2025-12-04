@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Icon } from '@iconify/react';
 
 const ThemeToggleButton = () => {
     // 1. Initialize state for the current theme
@@ -26,10 +27,15 @@ const ThemeToggleButton = () => {
         <button
             type="button"
             data-theme-toggle
+            aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
             className="w-40-px h-40-px bg-neutral-200 rounded-circle d-flex justify-content-center align-items-center"
             onClick={handleThemeToggle}
         >
-            Toggle Theme
+            {theme === 'dark' ? (
+                <Icon icon="solar:sun-2-bold" className="text-primary-600" />
+            ) : (
+                <Icon icon="solar:moon-linear" className="text-primary-600" />
+            )}
         </button>
     );
 };

@@ -73,17 +73,15 @@ const Usuarios = () => {
 
     // Coloque a função aqui, antes do uso em filteredUsers
     const isBirthdaySoon = (dateOfBirth) => {
+        if (!dateOfBirth) return false;
+        const date = new Date(dateOfBirth);
+        if (isNaN(date.getTime())) return false;
         const today = new Date();
-        const [year, month, day] = dateOfBirth.split("T")[0].split("-").map(Number);
-
-        // Resetando horas, minutos, segundos para comparação apenas da data
         const todayOnlyDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const birthDateThisYear = new Date(today.getFullYear(), month - 1, day);
-
-        const diffTime = Math.abs(birthDateThisYear - todayOnlyDate);
+        const birthDateThisYear = new Date(today.getFullYear(), date.getMonth(), date.getDate());
+        const diffTime = birthDateThisYear - todayOnlyDate;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        return diffDays <= 5 && birthDateThisYear >= todayOnlyDate;
+        return diffDays >= 0 && diffDays <= 5;
     };
 
     const mapUserType = (type) => {
@@ -217,7 +215,7 @@ const Usuarios = () => {
                                                 <Icon icon="fa-solid:gift" className="text-primary ms-2" />
                                             )}
                                         </td>
-                                        <td>{new Date(user.cp_datanascimento).toLocaleDateString()}</td>
+                                        <td>{user.cp_datanascimento ? new Date(user.cp_datanascimento).toLocaleDateString('pt-BR') : '-'}</td>
                                         <td>{mapUserType(user.cp_tipo_user)}</td>
                                         <td className="text-center">
                                             {/* <Link
